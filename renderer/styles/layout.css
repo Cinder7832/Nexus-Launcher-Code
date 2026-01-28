@@ -1,0 +1,14 @@
+#app{ display:flex; height:100vh; }
+.main{
+  flex:1;
+  padding:34px 36px;
+  overflow:hidden;
+}
+.page{
+  height:100%;
+  overflow:auto;
+  padding-right:8px;
+
+  /* prevents layout "jump" when scrollbars appear/disappear */
+  scrollbar-gutter: stable;
+}

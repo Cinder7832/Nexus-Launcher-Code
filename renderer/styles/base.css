@@ -1,0 +1,68 @@
+*{ box-sizing:border-box; }
+html,body{ height:100%; }
+body{
+  margin:0;
+  color:#fff;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background:
+    radial-gradient(1200px 700px at 70% 10%, rgba(124,92,255,.14), transparent 55%),
+    radial-gradient(900px 600px at 20% 30%, rgba(124,92,255,.08), transparent 50%),
+    #0b0d12;
+}
+
+/* =========================================
+   Nexus Launcher – Scrollbar theme
+   (Electron/Chromium + Firefox)
+   ========================================= */
+
+:root{
+  --nxScrollSize: 10px;
+  --nxScrollTrack: rgba(255,255,255,.05);
+  --nxScrollThumb: rgba(255,255,255,.14);
+  --nxScrollThumbHover: rgba(124,92,255,.45);
+  --nxScrollThumbActive: rgba(124,92,255,.62);
+}
+
+/* Firefox */
+*{
+  scrollbar-width: thin;
+  scrollbar-color: var(--nxScrollThumbHover) var(--nxScrollTrack);
+}
+
+/* Chromium/Electron */
+*::-webkit-scrollbar{
+  width: var(--nxScrollSize);
+  height: var(--nxScrollSize);
+}
+
+*::-webkit-scrollbar-track{
+  background: var(--nxScrollTrack);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb{
+  background-color: var(--nxScrollThumb);
+  border-radius: 999px;
+
+  /* gives a "floating thumb" look */
+  border: 2px solid rgba(0,0,0,0);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover{
+  background-color: var(--nxScrollThumbHover);
+}
+
+*::-webkit-scrollbar-thumb:active{
+  background-color: var(--nxScrollThumbActive);
+}
+
+*::-webkit-scrollbar-corner{
+  background: transparent;
+}
+
+/* slightly thinner in textareas (comments composer/edit boxes) */
+textarea::-webkit-scrollbar{
+  width: 8px;
+  height: 8px;
+}

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Nexus Launcher</title>
+
+  <link rel="stylesheet" href="styles/base.css" />
+  <link rel="stylesheet" href="styles/layout.css" />
+  <link rel="stylesheet" href="styles/sidebar.css" />
+  <link rel="stylesheet" href="styles/store.css" />
+  <link rel="stylesheet" href="styles/animations.css" />
+  <link rel="stylesheet" href="styles/downloads.css" />
+</head>
+<body>
+  <div id="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brandIcon" aria-hidden="true">
+          <img class="icon" src="assets/icon.png" alt="" aria-hidden="true" />
+        </div>
+
+        <div class="brandText">
+          <div class="brandName">Nexus</div>
+          <div class="brandSub">Launcher v2.0.2</div>
+        </div>
+
+        <!-- ✅ Announcements bell (NOT a new tab) -->
+        <button class="sidebarBellBtn" id="announcementsBtn" type="button" title="Announcements">
+          <span class="bellDot" id="announcementsDot" style="display:none;" aria-hidden="true"></span>
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 7h18s-3 0-3-7"></path>
+            <path d="M13.73 21a2 2 0 01-3.46 0"></path>
+          </svg>
+        </button>
+      </div>
+
+      <nav class="nav">
+        <button class="navBtn active" data-page="store" type="button">
+          <span class="navIcon" aria-hidden="true">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <!-- Storefront icon (cleaner than the bag + matches the premium set) -->
+              <path d="M4 4h16l1 5H3l1-5Z"></path>
+              <path d="M5 9v11h14V9"></path>
+              <path d="M10 20v-7h4v7"></path>
+            </svg>
+          </span>
+          <span>Store</span>
+        </button>
+
+        <button class="navBtn" data-page="library" type="button">
+          <span class="navIcon" aria-hidden="true">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"></path>
+              <path d="M3 10h18"></path>
+            </svg>
+          </span>
+          <span>Library</span>
+        </button>
+
+        <button class="navBtn" data-page="downloads" type="button">
+          <span class="navIcon" aria-hidden="true">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3v10"></path>
+              <path d="M8 11l4 4 4-4"></path>
+              <path d="M5 21h14"></path>
+            </svg>
+          </span>
+          <span>Downloads</span>
+          <span class="navBadge" id="downloadsBadge" style="display:none;">0</span>
+        </button>
+
+        <button class="navBtn" data-page="analytics" type="button">
+          <span class="navIcon" aria-hidden="true">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 19V5"></path>
+              <path d="M4 19h16"></path>
+              <path d="M8 17V11"></path>
+              <path d="M12 17V7"></path>
+              <path d="M16 17V13"></path>
+            </svg>
+          </span>
+          <span>Analytics</span>
+        </button>
+
+        <button class="navBtn" data-page="settings" type="button">
+          <span class="navIcon" aria-hidden="true">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 21v-7"></path>
+              <path d="M4 10V3"></path>
+              <path d="M12 21v-9"></path>
+              <path d="M12 8V3"></path>
+              <path d="M20 21v-5"></path>
+              <path d="M20 12V3"></path>
+              <path d="M2 14h4"></path>
+              <path d="M10 10h4"></path>
+              <path d="M18 16h4"></path>
+            </svg>
+          </span>
+          <span>Settings</span>
+        </button>
+      </nav>
+
+      <div class="sidebarFooter">
+        <button class="sidebarRefreshBtn" id="refreshBtn" type="button" title="Refresh store">
+          <span class="navIcon" aria-hidden="true">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M21 12a9 9 0 0 0-15-6.36"></path>
+              <path d="M3 12a9 9 0 0 0 15 6.36"></path>
+              <path d="M21 4v6h-6"></path>
+              <path d="M3 20v-6h6"></path>
+            </svg>
+          </span>
+          <span>Refresh</span>
+        </button>
+
+        <div class="statusCard">
+          <div class="statusTitle">System Status</div>
+          <div class="statusLine">
+            <span class="dot"></span>
+            <span class="statusText">Online</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div id="page" class="page"></div>
+    </main>
+  </div>
+
+  <!-- ✅ Supabase JS (UMD build) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
+  <!-- ✅ Supabase config (your project) -->
+  <script>
+    window.__SUPABASE_URL = "https://ejggjygdaafjbgrhflbg.supabase.co";
+    window.__SUPABASE_ANON_KEY = "sb_publishable_ClbaUDLLP3ifuAyvN8W2Lw_vO67ESEc";
+  </script>
+
+  <!-- ✅ Supabase init + anonymous (pseudonymous) session -->
+  <script>
+    (function () {
+      const url = window.__SUPABASE_URL || localStorage.getItem("nx.supa.url") || "";
+      const key = window.__SUPABASE_ANON_KEY || localStorage.getItem("nx.supa.key") || "";
+
+      if (!url || !key) {
+        console.warn("[Supabase] Missing URL or anon key.");
+        return;
+      }
+
+      // Sanity checks
+      if (!window.supabase || typeof window.supabase.createClient !== "function") {
+        console.error("[Supabase] UMD not loaded. `window.supabase.createClient` is missing.");
+        return;
+      }
+
+      // WebCrypto check (often the REAL reason in Electron)
+      if (!window.crypto || !window.crypto.subtle) {
+        console.error(
+          "[Supabase] WebCrypto is missing (window.crypto.subtle). Anonymous auth may fail in Electron.\n" +
+          "Fix: upgrade Electron or enable contextIsolation/preload crypto support."
+        );
+      }
+
+      window.sb = window.supabase.createClient(url, key, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: false,
+          storageKey: "nx.sb.auth.v1"
+        }
+      });
+
+      window.ensureAnonSession = async function ensureAnonSession() {
+        try {
+          const { data, error } = await window.sb.auth.getSession();
+          if (error) console.error("[Supabase] getSession error:", error);
+
+          if (!data?.session) {
+            const res = await window.sb.auth.signInAnonymously();
+            if (res?.error) {
+              console.error("[Supabase] Anonymous sign-in failed:", res.error);
+            } else {
+              console.log("[Supabase] Anonymous session OK:", res?.data?.user?.id);
+            }
+          } else {
+            console.log("[Supabase] Existing session OK:", data.session.user?.id);
+          }
+        } catch (e) {
+          console.error("[Supabase] ensureAnonSession exception:", e);
+        }
+      };
+
+      // Run immediately
+      window.ensureAnonSession();
+    })();
+  </script>
+
+  <script src="app.js"></script>
+
+  <script src="pages/store.page.js"></script>
+  <script src="pages/library.page.js"></script>
+  <script src="pages/downloads.page.js"></script>
+  <script src="pages/analytics.page.js"></script>
+  <script src="pages/settings.page.js"></script>
+  <script src="pages/details.page.js"></script>
+</body>
+</html>

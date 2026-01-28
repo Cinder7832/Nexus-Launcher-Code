@@ -1,0 +1,814 @@
+/* =========================
+   Shared Page Header Styles
+   ========================= */
+
+/* ✅ Default grid vars (used by Store + Library) */
+:root{
+  --nxGridCols: 3;
+  --nxTileMin: 260px;
+  --nxTileMax: 360px;
+}
+
+/* Make All Games / Library / Downloads / Settings match */
+.title,
+.pageHeader{
+  font-size:34px;
+  margin:0 0 14px 0;
+  letter-spacing:-.3px;
+  font-weight: 950;
+  line-height: 1.05;
+}
+
+.muted,
+.pageSub{
+  color:rgba(255,255,255,.55);
+  font-weight: 700;
+}
+
+/* Safety net:
+   If any page uses a plain h1 inside .page without a class,
+   it will still match "All Games" styling. */
+.page > h1:first-child{
+  font-size:34px;
+  margin:0 0 14px 0;
+  letter-spacing:-.3px;
+  font-weight: 950;
+  line-height: 1.05;
+}
+.page > p:first-of-type{
+  color:rgba(255,255,255,.55);
+  font-weight:700;
+}
+
+/* =========================
+   Store / Grid
+   ========================= */
+
+.storeTop{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:24px;
+}
+
+.simpleTop{ margin-bottom: 18px; }
+
+.pills{ display:flex; gap:10px; flex-wrap:wrap; }
+.pill{
+  border:none;
+  padding:10px 14px;
+  border-radius:999px;
+  background: rgba(255,255,255,.06);
+  color:rgba(255,255,255,.70);
+  cursor:pointer;
+
+  /* ✅ smoother */
+  transition:
+    background .32s cubic-bezier(.2,.9,.2,1),
+    transform .32s cubic-bezier(.2,.9,.2,1),
+    color .32s ease,
+    box-shadow .32s ease;
+}
+.pill:hover{
+  transform: translateY(-1px);
+  background: rgba(255,255,255,.09);
+  color:#fff;
+}
+.pill.active{
+  background: rgba(124,92,255,.95);
+  color:#fff;
+  box-shadow: 0 14px 30px rgba(124,92,255,.18);
+}
+
+.searchWrap{
+  width:420px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:12px 14px;
+  border-radius:16px;
+  background: rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.06);
+}
+.searchIcon{ opacity:.7; }
+.search{
+  width:100%;
+  border:none;
+  outline:none;
+  background: transparent;
+  color:#fff;
+  font-size:14px;
+}
+.search::placeholder{ color: rgba(255,255,255,.35); }
+
+.divider{
+  height:1px;
+  margin:18px 0 22px;
+  background: rgba(255,255,255,.06);
+}
+
+.grid{
+  display:grid;
+  grid-template-columns: repeat(var(--nxGridCols, 3), minmax(var(--nxTileMin, 260px), var(--nxTileMax, 360px)));
+  gap:26px;
+  align-items:start;
+}
+
+.gameTile{
+  position:relative;
+  height:420px;
+  border-radius:22px;
+  overflow:hidden;
+  cursor:pointer;
+  background: rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.06);
+  box-shadow: 0 24px 60px rgba(0,0,0,.35);
+
+  /* ✅ smoother + less snappy */
+  transition:
+    transform .45s cubic-bezier(.2,.9,.2,1),
+    box-shadow .45s cubic-bezier(.2,.9,.2,1),
+    filter .45s ease;
+  will-change: transform;
+}
+.gameTile:hover{
+  transform: translateY(-8px);
+  box-shadow: 0 34px 90px rgba(0,0,0,.55);
+  filter: brightness(1.03);
+}
+
+.tileImage{
+  position:absolute; inset:0;
+  background-size: cover;
+  background-position: center;
+  filter: saturate(1.05) contrast(1.02);
+  transform: scale(1.03);
+
+  /* ✅ tiny smooth float */
+  transition: transform .65s cubic-bezier(.2,.9,.2,1), filter .45s ease;
+}
+.gameTile:hover .tileImage{
+  transform: scale(1.05);
+  filter: saturate(1.08) contrast(1.03);
+}
+
+.tileOverlay{
+  position:absolute; inset:0;
+  background: linear-gradient(180deg, rgba(0,0,0,.10), rgba(0,0,0,.75));
+}
+
+.tileInfo{
+  position:absolute;
+  left:18px; right:18px; bottom:18px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.tileName{
+  font-size:26px;
+  font-weight:900;
+  letter-spacing:-.3px;
+  text-shadow: 0 10px 22px rgba(0,0,0,.55);
+}
+
+.tileBadge{
+  align-self:flex-start;
+  padding:8px 12px;
+  border-radius:10px;
+  background: rgba(255,255,255,.12);
+  border:1px solid rgba(255,255,255,.14);
+  font-size:13px;
+  font-weight:700;
+}
+
+.tileBusy{
+  pointer-events:none;
+  opacity:.6;
+}
+
+.emptyState{
+  margin-top:30px;
+  background: rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:22px;
+  padding:44px;
+  text-align:center;
+}
+.emptyIcon{ font-size:30px; margin-bottom:10px; }
+.emptyTitle{ font-size:20px; font-weight:900; margin-bottom:6px; }
+.emptyInline{ padding:30px; border-radius:18px; background: rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.05); }
+
+.panel{
+  margin-top:22px;
+  background: rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:22px;
+  padding:20px;
+  max-width:720px;
+}
+.panelTitle{ font-weight:900; margin-bottom:12px; }
+.panelRow{ display:flex; gap:12px; align-items:center; }
+.input{
+  flex:1;
+  padding:12px 14px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.06);
+  background: rgba(0,0,0,.18);
+  color:#fff;
+}
+.btnSecondary{
+  padding:12px 14px;
+  border-radius:14px;
+  border:none;
+  cursor:pointer;
+  background: rgba(255,255,255,.08);
+  color:#fff;
+  font-weight:800;
+}
+
+/* =========================
+   DETAILS PAGE
+   ========================= */
+
+.detailsHero{
+  height: 320px;
+  border-radius: 24px;
+  background-size: cover;
+  background-position: center;
+  border: none;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,.06),
+    0 30px 70px rgba(0,0,0,.55);
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.detailsHero::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius: inherit;
+  pointer-events:none;
+  z-index: 1;
+  background: linear-gradient(
+    180deg,
+    rgba(0,0,0,0.00) 0%,
+    rgba(0,0,0,0.06) 40%,
+    rgba(0,0,0,0.48) 100%
+  );
+}
+
+.detailsHero::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius: inherit;
+  pointer-events:none;
+  z-index: 1;
+  opacity: .55;
+  background:
+    radial-gradient(120% 90% at 50% 115%, rgba(0,0,0,.28) 0%, rgba(0,0,0,0) 58%),
+    radial-gradient(120% 90% at 50% -15%, rgba(0,0,0,.16) 0%, rgba(0,0,0,0) 60%);
+}
+
+.backBtn{
+  position: absolute;
+  top: 18px;
+  left: 18px;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.12);
+  color: #fff;
+
+  padding: 10px 12px;
+  border-radius: 14px;
+
+  cursor: pointer;
+  font-weight: 800;
+  line-height: 1;
+  z-index: 5;
+}
+
+.detailsHeroText{
+  position:absolute;
+  left:24px;
+  bottom:22px;
+  z-index: 2;
+}
+
+.detailsTitle{
+  margin:0;
+  font-size: 44px;
+  font-weight: 950;
+  letter-spacing: -0.6px;
+  text-shadow: 0 16px 30px rgba(0,0,0,.55);
+}
+
+.detailsMeta{
+  margin-top: 6px;
+  color: rgba(255,255,255,.65);
+  font-weight: 700;
+}
+
+.detailsBody{
+  display:grid;
+  grid-template-columns: 1fr 320px;
+  gap: 22px;
+  margin-top: 22px;
+}
+
+.detailsLeft{
+  background: rgba(255,255,255,.03);
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 22px;
+  padding: 22px;
+}
+
+.sectionTitle{
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-weight: 900;
+  color: rgba(255,255,255,.85);
+}
+
+.detailsDesc{
+  margin: 0;
+  color: rgba(255,255,255,.65);
+  line-height: 1.55;
+}
+
+.detailsRight{
+  display:flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ctaBtn{
+  background: rgba(124,92,255,.95);
+  border: none;
+  padding: 14px;
+  border-radius: 16px;
+  color: #fff;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 18px 40px rgba(124,92,255,.18);
+}
+
+.ctaBtn:disabled{
+  opacity: .6;
+  cursor: not-allowed;
+}
+
+.infoCard{
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 22px;
+  padding: 16px;
+}
+
+.infoRow{
+  display:flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  color: rgba(255,255,255,.70);
+  font-weight: 700;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.infoRow:last-child{ border-bottom:none; }
+
+.dangerBtn{
+  background: rgba(255,60,90,.16);
+  border: 1px solid rgba(255,60,90,.28);
+  color: #fff;
+  padding: 12px;
+  border-radius: 16px;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.shots{
+  display:flex;
+  gap: 12px;
+  overflow-x:auto;
+  padding-bottom: 6px;
+}
+
+.shot{
+  width: 210px;
+  height: 120px;
+  border-radius: 16px;
+  background-size: cover;
+  background-position: center;
+  border: 1px solid rgba(255,255,255,.08);
+  flex: 0 0 auto;
+}
+
+/* =========================
+   TOASTS
+   ========================= */
+
+.toastHost{
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  display:flex;
+  flex-direction:column;
+  gap: 10px;
+  z-index: 9999;
+}
+
+.toast{
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.10);
+  color:#fff;
+  font-weight: 900;
+  transform: translateY(10px);
+  opacity: 0;
+  transition: transform .2s ease, opacity .2s ease;
+  min-width: 240px;
+}
+
+.toast.show{
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.toast.success{
+  border-color: rgba(46,204,113,.35);
+  background: rgba(46,204,113,.12);
+}
+
+.toast.error{
+  border-color: rgba(255,60,90,.35);
+  background: rgba(255,60,90,.12);
+}
+
+/* =========================
+   DOWNLOADS HEADER + CARDS
+   ========================= */
+
+.dlHeader{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  margin-top: 6px;
+}
+
+.dlHeaderIcon{
+  width:46px;
+  height:46px;
+  border-radius: 16px;
+  display:grid;
+  place-items:center;
+  background: rgba(124,92,255,.16);
+  border: 1px solid rgba(124,92,255,.22);
+  box-shadow: 0 18px 40px rgba(0,0,0,.25);
+  font-weight: 900;
+}
+
+.dlHeaderTitle{
+  font-size: 34px;
+  font-weight: 950;
+  letter-spacing: -0.4px;
+  line-height: 1.05;
+}
+
+.dlHeaderSub{
+  margin-top: 4px;
+  color: rgba(255,255,255,.55);
+  font-weight: 700;
+}
+
+/* DOWNLOAD CARD (concept style) */
+.dlCard{
+  margin-top: 22px;
+  max-width: 900px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 22px;
+  padding: 18px 18px 16px;
+  box-shadow: 0 24px 70px rgba(0,0,0,.35);
+}
+
+.dlTopRow{
+  display:flex;
+  justify-content: space-between;
+  align-items:flex-start;
+  gap: 18px;
+}
+
+.dlLeft{
+  display:flex;
+  gap: 14px;
+  align-items:center;
+}
+
+.dlCover{
+  width: 54px;
+  height: 54px;
+  border-radius: 14px;
+  background-size: cover;
+  background-position: center;
+  border: 1px solid rgba(255,255,255,.10);
+  box-shadow: 0 14px 30px rgba(0,0,0,.35);
+}
+
+.dlText{ min-width: 380px; }
+
+.dlName{
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.dlSub{
+  margin-top: 6px;
+  color: rgba(255,255,255,.55);
+  font-weight: 800;
+  font-size: 13px;
+  display:flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items:center;
+}
+
+.dlStatus{
+  color: rgba(124,92,255,.95);
+}
+
+.dotSep{ opacity: .6; }
+
+.dlActions{
+  display:flex;
+  gap: 10px;
+}
+
+.iconBtn{
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.06);
+  color:#fff;
+  cursor:pointer;
+  font-weight: 900;
+  display:grid;
+  place-items:center;
+  transition: transform .15s ease, background .15s ease;
+}
+.iconBtn:hover{
+  transform: translateY(-1px);
+  background: rgba(255,255,255,.09);
+}
+.iconBtn.danger{
+  background: rgba(255,60,90,.16);
+  border-color: rgba(255,60,90,.28);
+}
+
+/* progress bar */
+.dlProgressTrack{
+  margin-top: 14px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.06);
+  overflow:hidden;
+}
+
+.dlProgressFill{
+  height: 100%;
+  border-radius: 999px;
+  background: rgba(124,92,255,.95);
+  width: 0%;
+  transition: width .2s ease;
+}
+
+.dlBottomRow{
+  margin-top: 12px;
+  display:flex;
+  justify-content: space-between;
+  color: rgba(255,255,255,.55);
+  font-weight: 900;
+  font-size: 13px;
+}
+
+.dlPercent{
+  color: rgba(255,255,255,.70);
+}
+
+.dlProgressFill.indeterminate{
+  width: 40%;
+  background: linear-gradient(90deg,
+    rgba(124,92,255,0.0),
+    rgba(124,92,255,0.95),
+    rgba(124,92,255,0.0)
+  );
+  animation: indetMove 1.1s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes indetMove{
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(220%); }
+}
+
+/* ensure buttons clickable */
+.dlActions, .iconBtn { pointer-events: auto; }
+.dlCard { pointer-events: auto; }
+
+/* =========================
+   Library overlay text + buttons
+   ========================= */
+
+.libMeta{
+  margin-top: 10px;
+  color: rgba(255,255,255,.70);
+  font-weight: 800;
+  font-size: 13px;
+  text-shadow: 0 10px 22px rgba(0,0,0,.55);
+}
+
+.libActions{
+  margin-top: 12px;
+  display:flex;
+  gap: 12px;
+}
+
+.libBtnPrimary{
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: none;
+  cursor:pointer;
+  background: rgba(124,92,255,.95);
+  color:#fff;
+  font-weight: 950;
+  box-shadow: 0 18px 40px rgba(124,92,255,.18);
+}
+
+.libBtnGhost{
+  padding: 10px 14px;
+  border-radius: 14px;
+  cursor:pointer;
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.12);
+  color:#fff;
+  font-weight: 900;
+}
+
+/* =========================================
+   Button press + focus feedback (global)
+   ========================================= */
+
+.ctaBtn,
+.dangerBtn,
+.libBtnPrimary,
+.libBtnGhost,
+.btnSecondary,
+.iconBtn{
+  /* ✅ smoother */
+  transition:
+    transform .32s cubic-bezier(.2,.9,.2,1),
+    filter .32s ease,
+    box-shadow .32s ease,
+    background .32s ease,
+    border-color .32s ease;
+  will-change: transform;
+}
+
+/* Press feedback (gentler) */
+.ctaBtn:active,
+.dangerBtn:active,
+.libBtnPrimary:active,
+.libBtnGhost:active,
+.btnSecondary:active,
+.iconBtn:active{
+  transform: translateY(0.5px) scale(0.985);
+  filter: brightness(1.04);
+}
+
+/* Keyboard focus (nice + modern) */
+.ctaBtn:focus-visible,
+.dangerBtn:focus-visible,
+.libBtnPrimary:focus-visible,
+.libBtnGhost:focus-visible,
+.btnSecondary:focus-visible,
+.iconBtn:focus-visible{
+  outline: none;
+  box-shadow:
+    0 0 0 3px rgba(124,92,255,.28),
+    0 18px 40px rgba(0,0,0,.18);
+}
+
+.ctaBtn, .dangerBtn, .libBtnPrimary, .libBtnGhost, .btnSecondary, .iconBtn{
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ✅ Details info rows: keep spacing + wrap long values cleanly */
+.infoRow{
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.infoRow > span:first-child{
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.infoRow > span:last-child{
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* Details page buttons hover */
+.ctaBtn:hover{
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}
+
+.dangerBtn:hover{
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}
+
+/* =========================================
+   Store developer filter pills: match playtime/meta text vibe
+   ========================================= */
+
+#devPills.pills .pill{
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: -0.1px;
+  color: rgba(255,255,255,.65);
+  padding: 9px 13px;
+}
+
+#devPills.pills .pill:hover{
+  color:#fff;
+}
+
+#devPills.pills .pill.active{
+  color:#fff;
+}
+
+/* =========================================================
+   ✅ STORE ONLY: Premium card CTA button (and subtle Installed)
+   This affects ONLY the button inside Store tiles.
+   Details page CTA stays exactly the same.
+   ========================================================= */
+
+.nxStorePage .gameTile .ctaBtn{
+  /* premium gradient + softer look than global purple */
+  background:
+    radial-gradient(120% 140% at 20% 0%,
+      rgba(255,255,255,.14),
+      rgba(255,255,255,0) 60%),
+    linear-gradient(180deg,
+      rgba(124,92,255,.92),
+      rgba(98,74,255,.78));
+  border: 1px solid rgba(124,92,255,.22);
+
+  padding: 14px;
+  border-radius: 16px;
+
+  box-shadow:
+    0 18px 46px rgba(124,92,255,.16),
+    inset 0 1px 0 rgba(255,255,255,.10);
+
+  color: #fff;
+}
+
+.nxStorePage .gameTile .ctaBtn:hover:not(:disabled){
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+  box-shadow:
+    0 22px 60px rgba(124,92,255,.18),
+    inset 0 1px 0 rgba(255,255,255,.12);
+}
+
+.nxStorePage .gameTile .ctaBtn:active:not(:disabled){
+  transform: translateY(0.5px) scale(0.985);
+  filter: brightness(1.05);
+}
+
+/* ✅ "Installed" state is disabled → make it quiet/neutral (not purple) */
+.nxStorePage .gameTile .ctaBtn:disabled{
+  opacity: 1;                 /* override default dimming */
+  cursor: not-allowed;
+
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.10);
+  color: rgba(255,255,255,.55);
+
+  box-shadow: none;
+  filter: none;
+  transform: none;
+}

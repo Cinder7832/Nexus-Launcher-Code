@@ -1,0 +1,28 @@
+<section class="storeTop">
+  <div>
+    <h1 class="title">All Games</h1>
+
+    <!-- ✅ TAGS / PILLS -->
+    <div class="pills" id="storePills">
+      <button class="pill active" data-tag="all">All</button>
+      <button class="pill" data-tag="featured">Featured</button>
+      <button class="pill" data-tag="new">New</button>
+      <button class="pill" data-tag="popular">Popular</button>
+    </div>
+  </div>
+
+  <div class="searchWrap">
+    <span class="searchIcon">🔎</span>
+    <input id="storeSearch" class="search" placeholder="Search games..." />
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<div id="storeGrid" class="grid"></div>
+
+<div id="storeEmpty" class="emptyState" style="display:none;">
+  <div class="emptyIcon">🔎</div>
+  <div class="emptyTitle">No results</div>
+  <div class="muted">Try a different search or tag.</div>
+</div>
