@@ -1,5 +1,11 @@
 // renderer/app.js
 
+// ✅ Boot: avoid a "Store → Start page" highlight flicker.
+// The HTML previously marked Store as active by default.
+// We clear all active states immediately; `loadPage(start)` will set the correct one.
+try {
+  document.querySelectorAll(".navBtn.active").forEach((b) => b.classList.remove("active"));
+} catch {}
 // ----------------------------
 // Tiny toast system (renderer)
 // ----------------------------
