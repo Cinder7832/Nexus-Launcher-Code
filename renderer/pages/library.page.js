@@ -824,6 +824,249 @@ function ensureLibraryPlayButtonGlowStyles() {
 }
 
 
+
+/* --------------------------
+   ✅ Right-click: move game to position (Library)
+   - Opens a small modal asking for a 1-based position
+   - Updates the saved localStorage order (same key as drag reorder)
+   -------------------------- */
+const NX_LIB_MOVE_STYLE_ID = "nxLibMovePosStyle";
+
+function ensureLibMovePosStyles() {
+  if (document.getElementById(NX_LIB_MOVE_STYLE_ID)) return;
+
+  const s = document.createElement("style");
+  s.id = NX_LIB_MOVE_STYLE_ID;
+  s.textContent = `
+    .nxMoveOverlay{
+      position: fixed; inset: 0; z-index: 99997;
+      display: grid; place-items: center;
+      padding: 22px;
+      background: rgba(0,0,0,.62);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      animation: nxMoveFadeIn .16s ease both;
+    }
+    .nxMoveCard{
+      width: min(520px, 92vw);
+      border-radius: 22px;
+      background: rgba(18,20,30,.92);
+      border: 1px solid rgba(255,255,255,.10);
+      box-shadow: 0 34px 110px rgba(0,0,0,.65);
+      overflow: hidden;
+    }
+    .nxMoveTop{
+      padding: 16px 16px 12px 16px;
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap: 12px;
+    }
+    .nxMoveTitle{
+      font-weight: 950;
+      font-size: 15px;
+      letter-spacing: .2px;
+      color: #fff;
+    }
+    .nxMoveSub{
+      margin-top: 6px;
+      color: rgba(255,255,255,.70);
+      font-weight: 750;
+      font-size: 13px;
+      line-height: 1.35;
+    }
+    .nxMoveBody{
+      padding: 0 16px 14px 16px;
+    }
+    .nxMoveRow{
+      display:flex;
+      gap: 12px;
+      align-items: center;
+      margin-top: 12px;
+    }
+    .nxMoveInput{
+      flex: 1;
+      height: 46px;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.06);
+      color: rgba(255,255,255,.94);
+      font-weight: 900;
+      font-size: 14px;
+      padding: 0 14px;
+      outline: none;
+      overflow: hidden; /* prevents any inner scrollbar */
+      appearance: textfield;
+    }
+    .nxMoveInput:focus{
+      border-color: rgba(124,92,255,.44);
+      box-shadow: 0 0 0 4px rgba(124,92,255,.14);
+    }
+
+    /* Remove number spinners / arrows */
+    .nxMoveInput::-webkit-outer-spin-button,
+    .nxMoveInput::-webkit-inner-spin-button{
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    .nxMoveInput[type="number"]{
+      -moz-appearance: textfield;
+    }
+
+    .nxMoveHint{
+      margin-top: 10px;
+      color: rgba(255,255,255,.55);
+      font-weight: 750;
+      font-size: 12.5px;
+      line-height: 1.35;
+    }
+    .nxMoveDivider{ height: 1px; background: rgba(255,255,255,.06); }
+    .nxMoveActions{
+      padding: 12px 16px 16px 16px;
+      display:flex;
+      justify-content:flex-end;
+      gap: 10px;
+    }
+    .nxMoveBtn{
+      border: none;
+      cursor: pointer;
+      border-radius: 14px;
+      padding: 11px 14px;
+      font-weight: 950;
+      color: #fff;
+      background: rgba(255,255,255,.08);
+      transition: transform .12s ease, background .16s ease;
+    }
+    .nxMoveBtn:hover{ background: rgba(255,255,255,.12); transform: translateY(-1px); }
+    .nxMoveBtn:active{ transform: translateY(0) scale(.98); }
+
+    .nxMoveBtnPrimary{
+      background: rgba(124,92,255,.28);
+      border: 1px solid rgba(124,92,255,.22);
+    }
+    .nxMoveBtnPrimary:hover{ background: rgba(124,92,255,.34); }
+
+    @keyframes nxMoveFadeIn{
+      from{ opacity:0; transform: translateY(8px); }
+      to{ opacity:1; transform: translateY(0); }
+    }
+  `;
+  document.head.appendChild(s);
+}
+
+/**
+ * Opens a modal asking for a 1-based position.
+ * Resolves with a Number (1..maxPos) or null if cancelled.
+ */
+function openLibMoveToPositionModal(gameName, currentPos, maxPos) {
+  ensureLibMovePosStyles();
+
+  const max = Math.max(1, Number(maxPos || 1));
+  const cur = Math.max(1, Math.min(max, Number(currentPos || 1)));
+
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "nxMoveOverlay";
+
+    const safeName = String(gameName || "this game")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+    overlay.innerHTML = `
+      <div class="nxMoveCard" role="dialog" aria-modal="true">
+        <div class="nxMoveTop">
+          <div style="min-width:0; flex:1;">
+            <div class="nxMoveTitle">Move in Library</div>
+            <div class="nxMoveSub">
+              Set the position for <strong>${safeName}</strong>.
+              (Current: ${cur} of ${max})
+            </div>
+          </div>
+        </div>
+
+        <div class="nxMoveBody">
+          <div class="nxMoveRow">
+            <input class="nxMoveInput" id="nxMovePosInput" type="number" min="1" max="${max}" step="1" value="${cur}" />
+          </div>
+          <div class="nxMoveHint">Type a number like <strong>1</strong> for first, or <strong>${max}</strong> for last.</div>
+        </div>
+
+        <div class="nxMoveDivider"></div>
+
+        <div class="nxMoveActions">
+          <button class="nxMoveBtn" id="nxMoveCancelBtn" type="button">Cancel</button>
+          <button class="nxMoveBtn nxMoveBtnPrimary" id="nxMoveOkBtn" type="button">Move</button>
+        </div>
+      </div>
+    `;
+
+    const card = overlay.querySelector(".nxMoveCard");
+    const input = overlay.querySelector("#nxMovePosInput");
+    const cancelBtn = overlay.querySelector("#nxMoveCancelBtn");
+    const okBtn = overlay.querySelector("#nxMoveOkBtn");
+
+    let closed = false;
+
+    function close(val) {
+      if (closed) return;
+      closed = true;
+      document.removeEventListener("keydown", onKey);
+      try { document.documentElement.style.overflow = ""; } catch {}
+      overlay.remove();
+      resolve(val);
+    }
+
+    function submit() {
+      const raw = Number(input?.value || 0);
+      if (!Number.isFinite(raw) || raw < 1 || raw > max) {
+        try { input?.focus?.(); input?.select?.(); } catch {}
+        if (typeof window.showToast === "function") {
+          window.showToast(`Enter a number between 1 and ${max}.`, "error");
+        } else if (typeof showToast === "function") {
+          showToast(`Enter a number between 1 and ${max}.`, "error");
+        }
+        return;
+      }
+      close(Math.floor(raw));
+    }
+
+    function onKey(e) {
+      if (e.key === "Escape") return close(null);
+      if (e.key === "Enter") return submit();
+    }
+
+    overlay.addEventListener("click", (e) => {
+      if (!card.contains(e.target)) close(null);
+    });
+
+    cancelBtn?.addEventListener("click", () => close(null));
+    okBtn?.addEventListener("click", submit);
+
+    // Prevent mousewheel from changing the number (and showing weird arrow overlays on some setups)
+    try {
+      input?.addEventListener(
+        "wheel",
+        (e) => {
+          e.preventDefault();
+        },
+        { passive: false }
+      );
+    } catch {}
+
+    document.addEventListener("keydown", onKey);
+    try { document.documentElement.style.overflow = "hidden"; } catch {}
+    document.body.appendChild(overlay);
+
+    setTimeout(() => {
+      try { input?.focus?.(); input?.select?.(); } catch {}
+    }, 0);
+  });
+}
+
+
 function attachLibraryReorder(gridEl, canReorder) {
   if (!gridEl || gridEl.__nxReorderAttached) return;
   gridEl.__nxReorderAttached = true;
@@ -1096,7 +1339,58 @@ window.renderLibrary = async function () {
     };
   }
 
-  function renderTiles(list, showHint) {
+  
+  // --------------------------
+  // ✅ Right-click: Move to position in Library
+  // --------------------------
+  function nxLibGetNormalizedOrder(ids) {
+    const liveIds = (ids || []).map((x) => String(x));
+    const set = new Set(liveIds);
+
+    // keep only valid ids
+    const order = loadLibraryOrder().map(String).filter((id) => set.has(id));
+
+    // append missing ids (new installs) to the end
+    for (const id of liveIds) {
+      if (!order.includes(id)) order.push(id);
+    }
+    return order;
+  }
+
+  async function nxLibPromptMoveToPosition(game) {
+    // Don't allow "move to position" while searching (matches drag-reorder behavior)
+    const term = String(window.__librarySearchTerm || "").trim();
+    if (term) {
+      if (typeof window.showToast === "function") {
+        window.showToast("Clear search to reorder your Library.", "info");
+      } else if (typeof showToast === "function") {
+        showToast("Clear search to reorder your Library.", "info");
+      }
+      return;
+    }
+
+    const order = nxLibGetNormalizedOrder(installedIds);
+    const maxPos = Math.max(1, order.length || 1);
+    const curPos = Math.max(1, order.indexOf(String(game.id)) + 1);
+
+    const newPos = await openLibMoveToPositionModal(game.name || "Game", curPos, maxPos);
+    if (newPos == null) return;
+
+    const target = Math.max(1, Math.min(maxPos, Number(newPos)));
+    const id = String(game.id);
+
+    const curIdx = order.indexOf(id);
+    if (curIdx >= 0) order.splice(curIdx, 1);
+    order.splice(target - 1, 0, id);
+
+    saveLibraryOrder(order);
+
+    // Recompute order and re-render
+    allGames = sortLibraryGamesByOrder(allGames);
+    applyFilterAndRender();
+  }
+
+function renderTiles(list, showHint) {
     // If we repeatedly render the same tile list (common during download progress
     // events), avoid touching the DOM so hover/transition animations don't restart.
     const key =
@@ -1221,7 +1515,17 @@ if (showHint) {
         };
       }
 
-      tile.onclick = (e) => {
+      
+      // Right-click: move to a specific position in the Library order
+      tile.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        // Don't hijack right-clicks on buttons (Play/Update/etc.)
+        if (e.target && e.target.closest && e.target.closest("button")) return;
+        nxLibPromptMoveToPosition(game);
+      });
+
+tile.onclick = (e) => {
         const t = grid.__nxJustDraggedAt || 0;
         if (t && Date.now() - t < 350) return;
         goDetails(e);
