@@ -210,7 +210,7 @@ const NX_TILE_HARD_MIN = {
   2: 240,
   3: 230,
   4: 190,
-  5: 170
+  5: 155
 };
 
 let nxUserCols = 3;

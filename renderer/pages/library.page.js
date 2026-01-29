@@ -367,7 +367,7 @@ const NX_LIB_TILE_HARD_MIN = {
   2: 240,
   3: 230,
   4: 190,
-  5: 170
+  5: 155
 };
 
 let nxLibUserCols = 3;
