@@ -1,6 +1,7 @@
 // renderer/pages/settings.page.js
 (function () {
   const MODAL_STYLE_ID = "nxMigrateModalStyle";
+  const WEBSITE_URL = "https://nexus-launcher.base44.app/";
   const SETTINGS_STYLE_ID = "nxSettingsLaunchModeStyle";
   const LAYOUT_STYLE_ID = "nxSettingsLayoutRevampStyle";
 
@@ -428,7 +429,27 @@
     document.documentElement.style.setProperty("--nxTileMax", `${m.max}px`);
   }
 
-  // --- UI injections (unchanged) ---
+  
+  function wireWebsiteButton(btn) {
+    if (!btn) return;
+    if (btn.dataset.nxBound === "1") return;
+    btn.dataset.nxBound = "1";
+
+    btn.addEventListener("click", async () => {
+      // Prefer IPC-backed safe open if available
+      try {
+        if (window.api?.openExternal) {
+          const res = await window.api.openExternal(WEBSITE_URL);
+          if (res?.ok) return;
+        }
+      } catch {}
+
+      // Fallback: may be blocked by Electron depending on your config
+      try { window.open(WEBSITE_URL, "_blank"); } catch {}
+    });
+  }
+
+// --- UI injections (unchanged) ---
 
   function injectLaunchModeUI(currentMode, onChange) {
     ensureLaunchModeStyles();
@@ -448,7 +469,7 @@
     row.innerHTML = `
       <div class="nxLaunchLeft">
         <div class="nxLaunchTitle">Launch mode</div>
-        <div class="nxLaunchSub">Choose how the launcher opens: normal window or maximized.</div>
+        <div class="nxLaunchSub">Choose how the launcher opens: normal window or maximized</div>
       </div>
 
       <div class="nxSeg" role="tablist" aria-label="Launch mode">
@@ -505,7 +526,7 @@
     row.innerHTML = `
       <div class="nxLaunchLeft">
         <div class="nxLaunchTitle">Start page</div>
-        <div class="nxLaunchSub">Choose what page opens when the launcher starts.</div>
+        <div class="nxLaunchSub">Choose what page opens when the launcher starts</div>
       </div>
 
       <div class="nxSeg" role="tablist" aria-label="Start page">
@@ -563,7 +584,7 @@
     row.innerHTML = `
       <div class="nxLaunchLeft">
         <div class="nxLaunchTitle">Grid columns</div>
-        <div class="nxLaunchSub">Choose how many games show per row in Store and Library.</div>
+        <div class="nxLaunchSub">Choose how many games show per row in Store and Library</div>
       </div>
 
       <div class="nxSeg" role="tablist" aria-label="Grid columns">
@@ -681,7 +702,8 @@
     if (page.querySelector(".nxSettingsGrid")) {
       return {
         updatesHost: page.querySelector("#nxUpdatesHost"),
-        installedVal: page.querySelector("#nxInstalledGamesVal")
+        installedVal: page.querySelector("#nxInstalledGamesVal"),
+        websiteBtn: page.querySelector("#nxWebsiteBtn")
       };
     }
 
@@ -707,7 +729,7 @@
     updatesPanel.innerHTML = `
       <div class="panelTitle">Updates</div>
       <div id="nxUpdatesHost"></div>
-      <div class="nxTinyNote">Download progress will appear here while updating the launcher.</div>
+      <div class="nxTinyNote">Download progress will appear here while updating the launcher</div>
     `;
 
     // Library panel (only thing you asked to add)
@@ -721,6 +743,19 @@
       </div>
     `;
 
+    // Website panel (link out)
+    const websitePanel = document.createElement("div");
+    websitePanel.className = "panel";
+    websitePanel.innerHTML = `
+      <div class="panelTitle">Website</div>
+      <div class="nxTinyNote" style="margin-top:0">Open the Nexus Launcher website</div>
+      <div style="margin-top:12px; display:flex; justify-content:flex-start;">
+        <div class="nxSeg" role="group" aria-label="Website">
+          <button class="nxSegBtn active" id="nxWebsiteBtn" type="button">Visit website</button>
+        </div>
+      </div>
+    `;
+
     // Insert grid where the main panel was
     const parent = mainPanel.parentElement;
     parent.insertBefore(grid, mainPanel);
@@ -729,13 +764,15 @@
     left.appendChild(updatesPanel);
 
     right.appendChild(libraryPanel);
+    right.appendChild(websitePanel);
 
     grid.appendChild(left);
     grid.appendChild(right);
 
     return {
       updatesHost: updatesPanel.querySelector("#nxUpdatesHost"),
-      installedVal: libraryPanel.querySelector("#nxInstalledGamesVal")
+      installedVal: libraryPanel.querySelector("#nxInstalledGamesVal"),
+      websiteBtn: websitePanel.querySelector("#nxWebsiteBtn")
     };
   }
 
@@ -795,6 +832,9 @@ try {
 
     // update installed games count (the only extra info)
     await refreshInstalledCount(layout?.installedVal);
+
+    // Wire Website button (right-side island)
+    try { wireWebsiteButton(layout?.websiteBtn || document.getElementById("nxWebsiteBtn")); } catch {}
 
     // get current launcher version
     try {
@@ -1160,6 +1200,9 @@ try {
       // update the count after changing root
       await refreshInstalledCount(layout?.installedVal);
 
+    // Wire Website button (right-side island)
+    try { wireWebsiteButton(layout?.websiteBtn || document.getElementById("nxWebsiteBtn")); } catch {}
+
       if (installedCount === 0) return;
 
       const doMove = await confirmMigrate(before, after);
@@ -1176,6 +1219,9 @@ try {
 
       // refresh after migration
       await refreshInstalledCount(layout?.installedVal);
+
+    // Wire Website button (right-side island)
+    try { wireWebsiteButton(layout?.websiteBtn || document.getElementById("nxWebsiteBtn")); } catch {}
     };
   };
 })();

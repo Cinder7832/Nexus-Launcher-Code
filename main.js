@@ -1,5 +1,5 @@
 // main.js
-const { app, BrowserWindow, ipcMain, dialog, Menu, net, powerMonitor } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, Menu, net, powerMonitor, shell } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
@@ -885,6 +885,28 @@ ipcMain.handle("get-install-path", () => {
     return "";
   }
 });
+
+// --------------------
+// ✅ Open external links (website button, etc.)
+// --------------------
+// Keep this *tight* to avoid exposing dangerous protocols from renderer-controlled data.
+ipcMain.handle("open-external", async (_evt, url) => {
+  try {
+    const u = new URL(String(url || ""));
+    const allowedHost = "nexus-launcher.base44.app";
+    if (u.hostname !== allowedHost) {
+      return { ok: false, error: "Blocked host" };
+    }
+    if (u.protocol !== "https:") {
+      return { ok: false, error: "Blocked protocol" };
+    }
+    await shell.openExternal(u.toString());
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e?.message || e) };
+  }
+});
+
 
 // --------------------
 // IPC: STORE + LIBRARY

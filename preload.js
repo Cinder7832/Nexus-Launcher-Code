@@ -7,6 +7,9 @@ contextBridge.exposeInMainWorld("api", {
   getInstalled: () => ipcRenderer.invoke("get-installed"),
   getDownloads: () => ipcRenderer.invoke("get-downloads"),
 
+  // Open external links (safe allowlist in main)
+  openExternal: (url) => ipcRenderer.invoke("open-external", url),
+
   // Refresh
   refreshStore: () => ipcRenderer.invoke("refresh-store"),
 
