@@ -856,11 +856,20 @@
     // Ensure layout exists on page
     ensureLayout();
 
-    // Ensure history bindings and render
+    // Ensure history bindings
     bindHistoryOnce();
-    renderHistory();
 
+    // ✅ Fix: history covers were blank on first open because we rendered history
+    // before building the store index (storeById). Build it first if needed.
+    if (state.storeById.size === 0) {
+      await rebuildStoreIndex();
+    }
+
+    // Render active downloads first (also ensures layout is mounted)
     await window.updateDownloadsUI();
+
+    // Now that storeById exists, render history so covers show immediately.
+    renderHistory();
 
     if (!state.bound) {
       state.bound = true;
