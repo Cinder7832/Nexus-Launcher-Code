@@ -348,25 +348,132 @@ const LIB_ORDER_KEY = "nx.libraryOrder.v1";
 const LIB_REORDER_STYLE_ID = "nxLibraryReorderStyle";
 const LIB_HINT_STYLE_ID = "nxLibraryReorderHintStyle";
 
+// ✅ Responsive grid columns (Library)
+// Users pick 3/4/5 in Settings. We try hard to respect that across Windows DPI scaling.
+// We allow tiles to tighten a bit before dropping a column.
+//
+// "preferred" min widths preserve your intended look.
+// "hard" min widths are the smallest we will allow before we clamp down.
+const NX_LIB_TILE_PREF = {
+  1: { min: 260, max: 520 },
+  2: { min: 260, max: 460 },
+  3: { min: 260, max: 400 },
+  4: { min: 230, max: 360 },
+  5: { min: 200, max: 320 }
+};
+
+const NX_LIB_TILE_HARD_MIN = {
+  1: 240,
+  2: 240,
+  3: 230,
+  4: 190,
+  5: 170
+};
+
+let nxLibUserCols = 3;
+let nxLibGridRO = null;
+let nxLibGridResizeHandler = null;
+let nxLibVVResizeHandler = null;
+let nxLibLastGridKey = "";
+
+function nxLibSetGridVars(cols, minPx, maxPx) {
+  const c = Math.max(1, Math.min(5, Number(cols) || 3));
+  const pref = NX_LIB_TILE_PREF[c] || NX_LIB_TILE_PREF[3];
+
+  const min = Math.max(140, Math.floor(Number(minPx || pref.min)));
+  const max = Math.max(min, Math.floor(Number(maxPx || pref.max)));
+
+  const key = `${c}|${min}|${max}`;
+  if (nxLibLastGridKey === key) return;
+  nxLibLastGridKey = key;
+
+  document.documentElement.style.setProperty("--nxGridCols", String(c));
+  document.documentElement.style.setProperty("--nxTileMin", `${min}px`);
+  document.documentElement.style.setProperty("--nxTileMax", `${max}px`);
+}
+
+function nxLibGetGridWidth(gridEl) {
+  const rectW = Math.round(gridEl.getBoundingClientRect?.().width || 0);
+  return Math.max(gridEl.clientWidth || 0, rectW || 0);
+}
+
+function nxLibComputeGridPlan(gridEl, desiredCols) {
+  const desired = Math.max(1, Math.min(5, Number(desiredCols) || 3));
+  const desiredPref = NX_LIB_TILE_PREF[desired] || NX_LIB_TILE_PREF[3];
+
+  if (!gridEl) {
+    return { cols: desired, min: desiredPref.min, max: desiredPref.max };
+  }
+
+  // NOTE: At some DPI/paint timings the grid can report width=0 for a frame.
+  // Treat that as "not laid out yet" and do not clamp based on it.
+  const w = nxLibGetGridWidth(gridEl);
+  if (w <= 0) {
+    return { cols: desired, min: desiredPref.min, max: desiredPref.max };
+  }
+
+  const cs = getComputedStyle(gridEl);
+  const gap = parseFloat(cs.columnGap || cs.gap || "0") || 0;
+
+  for (let c = desired; c >= 1; c--) {
+    const pref = NX_LIB_TILE_PREF[c] || NX_LIB_TILE_PREF[3];
+    const hard = NX_LIB_TILE_HARD_MIN[c] ?? pref.min;
+
+    const per = Math.floor((w - gap * (c - 1)) / c);
+
+    if (per >= hard) {
+      const min = Math.max(hard, Math.min(pref.min, per));
+      return { cols: c, min, max: pref.max };
+    }
+  }
+
+  const p1 = NX_LIB_TILE_PREF[1];
+  return { cols: 1, min: p1.min, max: p1.max };
+}
+
+function nxLibSetupResponsiveGrid(gridEl) {
+  if (!gridEl) return;
+
+  try { nxLibGridRO?.disconnect?.(); } catch {}
+  if (nxLibGridResizeHandler) window.removeEventListener("resize", nxLibGridResizeHandler);
+  if (nxLibVVResizeHandler && window.visualViewport) {
+    window.visualViewport.removeEventListener("resize", nxLibVVResizeHandler);
+  }
+
+  const schedule = () => {
+    requestAnimationFrame(() => {
+      const plan = nxLibComputeGridPlan(gridEl, nxLibUserCols);
+      nxLibSetGridVars(plan.cols, plan.min, plan.max);
+    });
+  };
+
+  nxLibGridResizeHandler = schedule;
+  window.addEventListener("resize", nxLibGridResizeHandler);
+
+  if (window.visualViewport) {
+    nxLibVVResizeHandler = schedule;
+    window.visualViewport.addEventListener("resize", nxLibVVResizeHandler);
+  } else {
+    nxLibVVResizeHandler = null;
+  }
+
+  nxLibGridRO = new ResizeObserver(schedule);
+  nxLibGridRO.observe(gridEl);
+
+  schedule();
+}
+
 async function applyGridFromSettings() {
   try {
     const s = await window.api.getSettings?.();
     const n = Number(s?.gridColumns);
-    const c = n === 4 ? 4 : n === 5 ? 5 : 3;
+    nxLibUserCols = n === 4 ? 4 : n === 5 ? 5 : 3;
 
-    const map = {
-      3: { min: 260, max: 360 },
-      4: { min: 230, max: 320 },
-      5: { min: 200, max: 280 }
-    };
-    const m = map[c] || map[3];
-
-    document.documentElement.style.setProperty("--nxGridCols", String(c));
-    document.documentElement.style.setProperty("--nxTileMin", `${m.min}px`);
-    document.documentElement.style.setProperty("--nxTileMax", `${m.max}px`);
+    const pref = NX_LIB_TILE_PREF[nxLibUserCols] || NX_LIB_TILE_PREF[3];
+    // Initial paint (will be adjusted once grid width is known)
+    nxLibSetGridVars(nxLibUserCols, pref.min, pref.max);
   } catch {}
 }
-
 
 // --------------------------
 // ✅ Premium search bar (Store + Library)
@@ -932,6 +1039,9 @@ window.renderLibrary = async function () {
   const updatesBtn = document.getElementById("checkUpdatesBtn");
   const searchEl = document.getElementById("librarySearch");
   if (!grid) return;
+
+  // ✅ Clamp columns to available width (fixes high-DPI button clipping)
+  nxLibSetupResponsiveGrid(grid);
 
   let canReorderNow = true;
   attachLibraryReorder(grid, () => canReorderNow);

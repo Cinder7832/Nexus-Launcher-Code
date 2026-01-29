@@ -1,12 +1,19 @@
-#app{ display:flex; height:100vh; }
+#app{ display:flex; height:100vh; min-width:0; }
 .main{
   flex:1;
-  padding:34px 36px;
+  min-width:0;
+  min-height:0;
+
+  /* DPI-friendly padding: shrink on high scaling / small viewports */
+  padding: clamp(18px, 3vh, 34px) clamp(18px, 2.2vw, 36px);
   overflow:hidden;
 }
 .page{
   height:100%;
-  overflow:auto;
+  min-width:0;
+  min-height:0;
+  overflow-y:auto;
+  overflow-x:hidden;
   padding-right:8px;
 
   /* prevents layout "jump" when scrollbars appear/disappear */

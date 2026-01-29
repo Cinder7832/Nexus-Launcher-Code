@@ -12,10 +12,12 @@
 /* Make All Games / Library / Downloads / Settings match */
 .title,
 .pageHeader{
-  font-size:34px;
-  margin:0 0 14px 0;
+  font-size: clamp(26px, 4vh, 34px);
+  margin: 0 0 clamp(10px, 1.6vh, 14px) 0;
   letter-spacing:-.3px;
   font-weight: 950;
+  flex: 0 0 auto;
+  white-space: nowrap;
   line-height: 1.05;
 }
 
@@ -29,10 +31,12 @@
    If any page uses a plain h1 inside .page without a class,
    it will still match "All Games" styling. */
 .page > h1:first-child{
-  font-size:34px;
-  margin:0 0 14px 0;
+  font-size: clamp(26px, 4vh, 34px);
+  margin: 0 0 clamp(10px, 1.6vh, 14px) 0;
   letter-spacing:-.3px;
   font-weight: 950;
+  flex: 0 0 auto;
+  white-space: nowrap;
   line-height: 1.05;
 }
 .page > p:first-of-type{
@@ -48,10 +52,21 @@
   display:flex;
   align-items:flex-start;
   justify-content:space-between;
-  gap:24px;
+  flex-wrap: wrap;
+  min-width: 0;
+  gap: clamp(14px, 2.2vw, 24px);
+}
+
+@media (max-height: 780px){
+  .storeTop{ gap: 12px; }
+  .searchWrap{ height: 50px; }
 }
 
 .simpleTop{ margin-bottom: 18px; }
+
+@media (max-height: 780px){
+  .simpleTop{ margin-bottom: 12px; }
+}
 
 .pills{ display:flex; gap:10px; flex-wrap:wrap; }
 .pill{
@@ -103,20 +118,26 @@
 
 .divider{
   height:1px;
-  margin:18px 0 22px;
+  margin: clamp(12px, 2vh, 18px) 0 clamp(14px, 2.4vh, 22px);
   background: rgba(255,255,255,.06);
 }
 
 .grid{
   display:grid;
-  grid-template-columns: repeat(var(--nxGridCols, 3), minmax(var(--nxTileMin, 260px), var(--nxTileMax, 360px)));
-  gap:26px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+
+  /* DPI-friendly: columns clamp in JS; cells can stretch without clipping */
+  grid-template-columns: repeat(var(--nxGridCols, 3), minmax(var(--nxTileMin, 260px), 1fr));
+  gap: clamp(16px, 2.2vw, 26px);
   align-items:start;
 }
 
 .gameTile{
   position:relative;
-  height:420px;
+  min-width: 0;
+  height: clamp(320px, 52vh, 420px);
   border-radius:22px;
   overflow:hidden;
   cursor:pointer;
@@ -166,7 +187,7 @@
 }
 
 .tileName{
-  font-size:26px;
+  font-size: clamp(20px, 2.1vw, 26px);
   font-weight:900;
   letter-spacing:-.3px;
   text-shadow: 0 10px 22px rgba(0,0,0,.55);
@@ -306,6 +327,8 @@
   margin:0;
   font-size: 44px;
   font-weight: 950;
+  flex: 0 0 auto;
+  white-space: nowrap;
   letter-spacing: -0.6px;
   text-shadow: 0 16px 30px rgba(0,0,0,.55);
 }
@@ -318,7 +341,8 @@
 
 .detailsBody{
   display:grid;
-  grid-template-columns: 1fr 320px;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
+  min-width: 0;
   gap: 22px;
   margin-top: 22px;
 }
@@ -328,6 +352,7 @@
   border: 1px solid rgba(255,255,255,.06);
   border-radius: 22px;
   padding: 22px;
+  min-width: 0;
 }
 
 .sectionTitle{
@@ -409,6 +434,14 @@
   flex: 0 0 auto;
 }
 
+
+@media (max-width: 980px){
+  /* Stack Details layout on narrower effective widths (high DPI scaling / small screens) */
+  .detailsBody{ grid-template-columns: 1fr; }
+  .detailsRight{ grid-row: 1; }
+  .detailsLeft{ grid-row: 2; }
+}
+
 /* =========================
    TOASTS
    ========================= */
@@ -477,6 +510,8 @@
 .dlHeaderTitle{
   font-size: 34px;
   font-weight: 950;
+  flex: 0 0 auto;
+  white-space: nowrap;
   letter-spacing: -0.4px;
   line-height: 1.05;
 }
@@ -526,6 +561,8 @@
 .dlName{
   font-size: 18px;
   font-weight: 950;
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .dlSub{
@@ -637,7 +674,11 @@
 .libActions{
   margin-top: 12px;
   display:flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 10px;
+  min-width: 0;
 }
 
 .libBtnPrimary{
@@ -648,10 +689,14 @@
   background: rgba(124,92,255,.95);
   color:#fff;
   font-weight: 950;
+  flex: 0 0 auto;
+  white-space: nowrap;
   box-shadow: 0 18px 40px rgba(124,92,255,.18);
 }
 
 .libBtnGhost{
+  flex: 0 0 auto;
+  white-space: nowrap;
   padding: 10px 14px;
   border-radius: 14px;
   cursor:pointer;

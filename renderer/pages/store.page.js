@@ -188,25 +188,143 @@
     document.head.appendChild(s);
   }
 
-  // ✅ apply grid columns (shared behavior)
-  async function applyGridFromSettings() {
-    try {
-      const s = await window.api.getSettings?.();
-      const n = Number(s?.gridColumns);
-      const c = n === 4 ? 4 : n === 5 ? 5 : 3;
+  // ✅ Responsive grid columns (Store)
+// Users pick 3/4/5 in Settings. We *try hard* to respect that across Windows DPI scaling.
+// Instead of immediately dropping a column, we allow tiles to get a bit tighter first.
+//
+// Key idea:
+// - "preferred" min widths preserve your intended look (125% / 4 columns).
+// - "hard" min widths are the smallest we will allow before we drop a column.
+//   (This prevents button text like "Pl" and other cramped UI.)
+const NX_TILE_PREF = {
+  1: { min: 260, max: 520 },
+  2: { min: 260, max: 460 },
+  3: { min: 260, max: 400 },
+  4: { min: 230, max: 360 },
+  5: { min: 200, max: 320 }
+};
 
-      const map = {
-        3: { min: 260, max: 360 },
-        4: { min: 230, max: 320 },
-        5: { min: 200, max: 280 }
-      };
-      const m = map[c] || map[3];
+// Absolute minimum per tile (in CSS px) before we clamp down a column.
+const NX_TILE_HARD_MIN = {
+  1: 240,
+  2: 240,
+  3: 230,
+  4: 190,
+  5: 170
+};
 
-      document.documentElement.style.setProperty("--nxGridCols", String(c));
-      document.documentElement.style.setProperty("--nxTileMin", `${m.min}px`);
-      document.documentElement.style.setProperty("--nxTileMax", `${m.max}px`);
-    } catch {}
+let nxUserCols = 3;
+let nxGridRO = null;
+let nxGridResizeHandler = null;
+let nxVVResizeHandler = null;
+let nxLastGridKey = "";
+
+function setGridVars(cols, minPx, maxPx) {
+  const c = Math.max(1, Math.min(5, Number(cols) || 3));
+  const pref = NX_TILE_PREF[c] || NX_TILE_PREF[3];
+
+  const min = Math.max(140, Math.floor(Number(minPx || pref.min)));
+  const max = Math.max(min, Math.floor(Number(maxPx || pref.max)));
+
+  const key = `${c}|${min}|${max}`;
+  if (nxLastGridKey === key) return;
+  nxLastGridKey = key;
+
+  document.documentElement.style.setProperty("--nxGridCols", String(c));
+  document.documentElement.style.setProperty("--nxTileMin", `${min}px`);
+  document.documentElement.style.setProperty("--nxTileMax", `${max}px`);
+}
+
+function getGridWidth(gridEl) {
+  const rectW = Math.round(gridEl.getBoundingClientRect?.().width || 0);
+  return Math.max(gridEl.clientWidth || 0, rectW || 0);
+}
+
+function computeGridPlan(gridEl, desiredCols) {
+  const desired = Math.max(1, Math.min(5, Number(desiredCols) || 3));
+  const desiredPref = NX_TILE_PREF[desired] || NX_TILE_PREF[3];
+
+  if (!gridEl) {
+    return { cols: desired, min: desiredPref.min, max: desiredPref.max };
   }
+
+  // NOTE: At some DPI/paint timings the grid can report width=0 for a frame.
+  // Treat that as "not laid out yet" and do not clamp based on it.
+  const w = getGridWidth(gridEl);
+  if (w <= 0) {
+    return { cols: desired, min: desiredPref.min, max: desiredPref.max };
+  }
+
+  const cs = getComputedStyle(gridEl);
+  const gap = parseFloat(cs.columnGap || cs.gap || "0") || 0;
+
+  // Walk down from desired columns until we find something that fits.
+  for (let c = desired; c >= 1; c--) {
+    const pref = NX_TILE_PREF[c] || NX_TILE_PREF[3];
+    const hard = NX_TILE_HARD_MIN[c] ?? pref.min;
+
+    // Available width per tile if we keep 'c' columns.
+    const per = Math.floor((w - gap * (c - 1)) / c);
+
+    // If we can keep at least the hard minimum, keep 'c' columns.
+    if (per >= hard) {
+      // Use preferred min where possible; otherwise shrink to what's available.
+      const min = Math.max(hard, Math.min(pref.min, per));
+      return { cols: c, min, max: pref.max };
+    }
+  }
+
+  // Fallback: 1 column.
+  const p1 = NX_TILE_PREF[1];
+  return { cols: 1, min: p1.min, max: p1.max };
+}
+
+function setupResponsiveGrid(gridEl) {
+  if (!gridEl) return;
+
+  // Cleanup from previous renders
+  try { nxGridRO?.disconnect?.(); } catch {}
+  if (nxGridResizeHandler) window.removeEventListener("resize", nxGridResizeHandler);
+  if (nxVVResizeHandler && window.visualViewport) {
+    window.visualViewport.removeEventListener("resize", nxVVResizeHandler);
+  }
+
+  const schedule = () => {
+    // Prevent layout thrash during resize/DPI changes
+    requestAnimationFrame(() => {
+      const plan = computeGridPlan(gridEl, nxUserCols);
+      setGridVars(plan.cols, plan.min, plan.max);
+    });
+  };
+
+  nxGridResizeHandler = schedule;
+  window.addEventListener("resize", nxGridResizeHandler);
+
+  if (window.visualViewport) {
+    nxVVResizeHandler = schedule;
+    window.visualViewport.addEventListener("resize", nxVVResizeHandler);
+  } else {
+    nxVVResizeHandler = null;
+  }
+
+  nxGridRO = new ResizeObserver(schedule);
+  nxGridRO.observe(gridEl);
+
+  schedule();
+}
+
+async function applyGridFromSettings() {
+  try {
+    const s = await window.api.getSettings?.();
+    const n = Number(s?.gridColumns);
+    nxUserCols = n === 4 ? 4 : n === 5 ? 5 : 3;
+
+    const pref = NX_TILE_PREF[nxUserCols] || NX_TILE_PREF[3];
+    // Initial paint (will be adjusted once grid width is known)
+    setGridVars(nxUserCols, pref.min, pref.max);
+  } catch {}
+}
+
 
   function bindEventsOnce() {
     if (eventsBound) return;
@@ -324,9 +442,6 @@
       const s = document.createElement("style");
       s.id = styleId;
       s.textContent = `
-        /* Prevent page-level horizontal overflow on Store only */
-        .nxStorePage{ overflow-x: hidden; }
-
         /* Store dev pills only (search bar styles are shared) */
         #devPills .pill{
           font-weight: 760;
@@ -407,6 +522,9 @@
     const input = document.getElementById("storeSearch");
     const empty = document.getElementById("storeEmpty");
     const devPills = document.getElementById("devPills");
+
+    // ✅ Clamp columns to available width (fixes high-DPI button clipping)
+    setupResponsiveGrid(grid);
 
     const devRow = document.getElementById("devPillsRow");
     const navLeft = devRow?.querySelector?.('[data-dir="left"]') || null;
