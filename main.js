@@ -32,7 +32,54 @@ const LAUNCHER_UPDATE = {
 
 let lastLauncherCheck = null;
 let launcherInstallerPath = null;
+let launcherDownloadedVersion = null;
 let launcherDownloadId = null;
+// Persist launcher-update download state so Settings can survive tab switches/relaunches.
+function launcherStateFilePath() {
+  return path.join(app.getPath("userData"), "launcher_update_state.json");
+}
+
+function loadLauncherUpdateState() {
+  try {
+    const fp = launcherStateFilePath();
+    if (!fs.existsSync(fp)) return;
+    const raw = fs.readFileSync(fp, "utf-8");
+    const st = JSON.parse(raw || "{}");
+    const p = st && typeof st === "object" ? String(st.installerPath || "") : "";
+    const v = st && typeof st === "object" ? String(st.downloadedVersion || "") : "";
+    if (p && fs.existsSync(p)) launcherInstallerPath = p;
+    if (v) launcherDownloadedVersion = normalizeVersion(v);
+  } catch {
+    // ignore
+  }
+}
+
+function saveLauncherUpdateState() {
+  try {
+    const fp = launcherStateFilePath();
+    const st = {
+      installerPath: launcherInstallerPath || null,
+      downloadedVersion: launcherDownloadedVersion || null,
+      savedAt: Date.now()
+    };
+    fs.writeFileSync(fp, JSON.stringify(st, null, 2), "utf-8");
+  } catch {
+    // ignore
+  }
+}
+
+function clearLauncherUpdateState() {
+  launcherInstallerPath = null;
+  launcherDownloadedVersion = null;
+  launcherDownloadId = null;
+  try { saveLauncherUpdateState(); } catch {}
+}
+
+function ensureLauncherUpdateDir() {
+  const dir = path.join(app.getPath("userData"), "launcher_updates");
+  try { fs.mkdirSync(dir, { recursive: true }); } catch {}
+  return dir;
+}
 
 // ✅ cache remote store (helps auto-update)
 let lastRemoteStore = null;
@@ -612,7 +659,9 @@ function handleLauncherDownloadUpdate(n) {
 
   if (n.status === "completed") {
     launcherInstallerPath = n.destPath || launcherInstallerPath;
+    launcherDownloadedVersion = lastLauncherCheck?.latest ? normalizeVersion(lastLauncherCheck.latest) : launcherDownloadedVersion;
     launcherDownloadId = null;
+    try { saveLauncherUpdateState(); } catch {}
 
     sendToRenderer("launcher-update-ready", {
       latest: lastLauncherCheck?.latest || null
@@ -1030,7 +1079,38 @@ ipcMain.handle("get-launcher-version", () => {
   }
 });
 
-ipcMain.handle("check-launcher-update", async () => {
+
+
+ipcMain.handle("get-launcher-update-state", () => {
+  try {
+    const current = normalizeVersion(app.getVersion());
+    const latest = lastLauncherCheck?.latest ? normalizeVersion(lastLauncherCheck.latest) : null;
+    const hasUpdate = !!lastLauncherCheck?.hasUpdate;
+    const downloadedOk =
+      !!launcherInstallerPath &&
+      !!fs.existsSync(launcherInstallerPath) &&
+      !!launcherDownloadedVersion &&
+      (!!latest ? normalizeVersion(launcherDownloadedVersion) === normalizeVersion(latest) : true);
+
+    return {
+      ok: true,
+      checked: !!lastLauncherCheck,
+      current,
+      latest: latest || null,
+      hasUpdate,
+      publishedAt: lastLauncherCheck?.publishedAt || null,
+      releaseNotes: lastLauncherCheck?.releaseNotes || null,
+      downloading: !!launcherDownloadId,
+      downloadId: launcherDownloadId ? String(launcherDownloadId) : null,
+      downloaded: downloadedOk,
+      downloadedVersion: launcherDownloadedVersion || null,
+      installerPath: downloadedOk ? launcherInstallerPath : null
+    };
+  } catch (e) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+});
+ipcMain.handle("check-launcher-update", async (_evt, _opts) => {
   try {
     const owner = String(LAUNCHER_UPDATE.owner || "").trim();
     const repo = String(LAUNCHER_UPDATE.repo || "").trim();
@@ -1071,8 +1151,17 @@ ipcMain.handle("check-launcher-update", async () => {
       releaseNotes: String(release?.body || "")
     };
 
-    launcherInstallerPath = null;
-    launcherDownloadId = null;
+// If we previously downloaded an installer for a different version, discard it from UI state.
+try {
+  if (launcherDownloadedVersion && lastLauncherCheck?.latest) {
+    const want = normalizeVersion(lastLauncherCheck.latest);
+    if (normalizeVersion(launcherDownloadedVersion) !== want) {
+      launcherInstallerPath = null;
+      launcherDownloadedVersion = null;
+      saveLauncherUpdateState();
+    }
+  }
+} catch {}
 
     return {
       ok: true,
@@ -1089,8 +1178,60 @@ ipcMain.handle("check-launcher-update", async () => {
 
 ipcMain.handle("download-launcher-update", async () => {
   try {
-    if (!lastLauncherCheck?.assetUrl || !lastLauncherCheck?.latest) {
-      return { ok: false, error: "Run check for updates first." };
+    // If we don't have fresh release info yet, check now (so Settings/Startup can call download directly).
+    if (!lastLauncherCheck?.latest || !lastLauncherCheck?.assetUrl) {
+      // Re-run the same logic as check-launcher-update
+      const owner = String(LAUNCHER_UPDATE.owner || "").trim();
+      const repo = String(LAUNCHER_UPDATE.repo || "").trim();
+      if (!owner || !repo || owner === "YOUR_GITHUB_OWNER" || repo === "YOUR_GITHUB_REPO") {
+        return { ok: false, error: "Set LAUNCHER_UPDATE.owner + repo in main.js first." };
+      }
+
+      const current = normalizeVersion(app.getVersion());
+      const release = await fetchLatestLauncherRelease(owner, repo);
+      if (!release) {
+        return { ok: false, error: "No launcher release found. Make sure you have a release tagged like v1.0.0 with a .exe/.msi asset." };
+      }
+
+      const latestTag = String(release?.tag_name || release?.name || "");
+      const latest = normalizeVersion(latestTag);
+      if (!latest || !isPureSemverTag(latestTag)) {
+        return { ok: false, error: "Launcher release tag must be like v1.0.0" };
+      }
+
+      const asset = pickReleaseAsset(release);
+      if (!asset?.url) return { ok: false, error: "No .exe/.msi asset found in launcher release." };
+
+      const hasUpdate = compareSemver(latest, current) > 0;
+      lastLauncherCheck = {
+        current,
+        latest,
+        hasUpdate,
+        assetUrl: asset.url,
+        assetName: asset.name,
+        publishedAt: String(release?.published_at || ""),
+        releaseNotes: String(release?.body || "")
+      };
+
+      // If our cached downloaded installer is for a different version, clear it.
+      try {
+        if (launcherDownloadedVersion && normalizeVersion(launcherDownloadedVersion) !== normalizeVersion(latest)) {
+          launcherInstallerPath = null;
+          launcherDownloadedVersion = null;
+          saveLauncherUpdateState();
+        }
+      } catch {}
+    }
+
+    if (!lastLauncherCheck?.hasUpdate) {
+      return { ok: false, error: "No update available." };
+    }
+
+    const wantVersion = normalizeVersion(lastLauncherCheck.latest);
+
+    // If we already downloaded the installer for this version, reuse it.
+    if (launcherInstallerPath && fs.existsSync(launcherInstallerPath) && launcherDownloadedVersion && normalizeVersion(launcherDownloadedVersion) === wantVersion) {
+      return { ok: true, alreadyDownloaded: true, installerPath: launcherInstallerPath, version: wantVersion };
     }
 
     if (launcherDownloadId) {
@@ -1100,18 +1241,23 @@ ipcMain.handle("download-launcher-update", async () => {
     const url = String(lastLauncherCheck.assetUrl || "");
     if (!isUrl(url)) return { ok: false, error: "Bad download URL." };
 
-    const fileName = safeFileName(lastLauncherCheck.assetName || `launcher_update_${lastLauncherCheck.latest}.exe`);
-    const destPath = path.join(os.tmpdir(), fileName);
+    const fileName = safeFileName(lastLauncherCheck.assetName || `launcher_update_${wantVersion}.exe`);
+    const destDir = ensureLauncherUpdateDir();
+    const destPath = path.join(destDir, fileName);
+
+    // Clear any stale state before starting a new download
+    launcherInstallerPath = null;
+    launcherDownloadedVersion = null;
+    saveLauncherUpdateState();
 
     const downloadId = downloads.start({
       gameId: "__launcher__",
-      name: `Launcher Update v${lastLauncherCheck.latest}`,
+      name: `Launcher Update v${wantVersion}`,
       url,
       destPath
     });
 
     launcherDownloadId = String(downloadId);
-    launcherInstallerPath = null;
 
     sendToRenderer("toast", { message: "Downloading launcher update...", kind: "info" });
 
@@ -1142,6 +1288,8 @@ ipcMain.handle("install-launcher-update", async () => {
         windowsHide: false
       });
       proc.unref();
+      // Clear cached download state so Settings doesn't ask to install again after updating.
+      try { clearLauncherUpdateState(); } catch {}
     } catch (e) {
       return { ok: false, error: `Failed to start installer: ${e?.message || e}` };
     }
@@ -1419,7 +1567,7 @@ ipcMain.handle("check-updates", async (_evt, opts) => {
 // --------------------
 ipcMain.handle("get-downloads", () => {
   const list = downloads.list ? downloads.list() : [];
-  return list.map(normalizeDownload).filter(Boolean);
+  return list.map(normalizeDownload).filter((d) => d && String(d.gameId) !== "__launcher__");
 });
 
 // Install (fresh install)
@@ -1651,6 +1799,7 @@ function pushNetStatus() {
 // App lifecycle
 // --------------------
 app.whenReady().then(() => {
+  loadLauncherUpdateState();
   createWindow();
 
   setTimeout(pushNetStatus, 300);

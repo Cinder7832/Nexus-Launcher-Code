@@ -40,7 +40,8 @@ contextBridge.exposeInMainWorld("api", {
 
   // ✅ Launcher updates
   getLauncherVersion: () => ipcRenderer.invoke("get-launcher-version"),
-  checkLauncherUpdate: () => ipcRenderer.invoke("check-launcher-update"),
+  getLauncherUpdateState: () => ipcRenderer.invoke("get-launcher-update-state"),
+  checkLauncherUpdate: (opts) => ipcRenderer.invoke("check-launcher-update", opts),
   downloadLauncherUpdate: () => ipcRenderer.invoke("download-launcher-update"),
   installLauncherUpdate: () => ipcRenderer.invoke("install-launcher-update"),
 

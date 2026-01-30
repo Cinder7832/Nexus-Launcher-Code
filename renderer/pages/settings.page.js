@@ -842,6 +842,18 @@ try {
       if (v?.ok && v?.version) launcherCurrent = String(v.version);
     } catch {}
 
+
+// ✅ Restore launcher update state (downloaded/ready) even after tab switches.
+try {
+  const st2 = await window.api.getLauncherUpdateState?.();
+  if (st2?.ok) {
+    if (st2.current) launcherCurrent = String(st2.current);
+    if (st2.latest) launcherLatest = String(st2.latest);
+    if (typeof st2.hasUpdate === "boolean") launcherHasUpdate = !!st2.hasUpdate;
+    if (typeof st2.checked === "boolean") launcherChecked = !!st2.checked;
+  }
+} catch {}
+
     injectLaunchModeUI(launchMode, async (mode) => {
       if (!window.api?.setLaunchMode) return;
       try {
@@ -939,20 +951,39 @@ function applyLauncherDownloadState(d, els) {
 
 async function restoreLauncherUpdateProgress() {
   try {
+    // 1) Use most recent download progress event (if any)
     const d0 = window.__nxLauncherDownloadState;
     if (d0 && String(d0.gameId) === "__launcher__") {
       applyLauncherDownloadState(d0);
       return;
     }
 
-    if (typeof window.api?.getDownloads !== "function") return;
-    const list = await window.api.getDownloads();
-    const items = Array.isArray(list) ? list : (list?.downloads || []);
-    const d = items.find((x) => String(x?.gameId || "") === "__launcher__");
-    if (d) {
-      // also keep global state for later
-      try { window.__nxLauncherDownloadState = d; } catch {}
-      applyLauncherDownloadState(d);
+    // 2) Ask main-process for persisted state (downloaded installer survives page switches)
+    if (typeof window.api?.getLauncherUpdateState !== "function") return;
+    const st = await window.api.getLauncherUpdateState();
+    if (!st || !st.ok) return;
+
+    // If a download is in progress but we don't have percent, show a generic state.
+    if (st.downloading) {
+      applyLauncherDownloadState({
+        gameId: "__launcher__",
+        status: "downloading",
+        percent: 0,
+        speed: 0
+      });
+      return;
+    }
+
+    // If already downloaded for the latest version, mark as install-ready.
+    if (st.downloaded && st.installerPath) {
+      applyLauncherDownloadState({
+        gameId: "__launcher__",
+        status: "completed",
+        percent: 100,
+        speed: 0,
+        destPath: st.installerPath
+      });
+      return;
     }
   } catch {}
 }
@@ -1173,6 +1204,9 @@ try {
       };
 
       setIdle();
+
+      // Restore download/install state after wiring handlers
+      restoreLauncherUpdateProgress();
     }
 
     btn.onclick = async () => {

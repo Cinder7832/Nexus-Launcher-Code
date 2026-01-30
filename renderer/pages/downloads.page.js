@@ -783,7 +783,9 @@
       await rebuildStoreIndex();
     }
 
-    const list = await window.api.getDownloads();
+    const rawList = await window.api.getDownloads();
+    // Hide launcher self-updates from the Downloads page UI
+    const list = (rawList || []).filter((d) => String(d?.gameId || "") !== "__launcher__");
     state.lastList = list || [];
 
     // if a game has a NEW active download, it's no longer "done"
@@ -877,6 +879,7 @@
       // live download updates (also clears done status when downloads restart)
       window.api.onDownloadUpdated?.((d) => {
         const gid = String(d?.gameId ?? "");
+        if (gid === "__launcher__") return;
         if (gid && (d.status === "downloading" || d.status === "paused")) {
           state.doneGameIds.delete(gid);
         }

@@ -465,6 +465,418 @@ document.querySelectorAll(".navBtn").forEach((btn) => {
   btn.addEventListener("click", () => window.loadPage(btn.dataset.page));
 });
 
+/* ----------------------------
+   ✅ Launcher update popup (startup)
+   - Silent check on launch
+   - Shows a modal if an update exists
+   - Does NOT dismiss permanently (will show again next launch if still out of date)
+   - Does NOT close when clicking outside
+---------------------------- */
+const NX_LU_POPUP_STYLE_ID = "nxLauncherUpdatePopupStyle";
+const NX_LU_POPUP_OVERLAY_ID = "nxLauncherUpdateOverlay";
+
+function ensureLauncherUpdatePopupStyles() {
+  if (document.getElementById(NX_LU_POPUP_STYLE_ID)) return;
+
+  const s = document.createElement("style");
+  s.id = NX_LU_POPUP_STYLE_ID;
+  s.textContent = `
+    .nxLuOverlay{
+      position: fixed; inset: 0; z-index: 99996;
+      display: grid; place-items: center;
+      padding: 22px;
+      background: rgba(0,0,0,.62);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      animation: nxLuFadeIn .16s ease both;
+    }
+    .nxLuCard{
+      width: min(560px, 92vw);
+      border-radius: 22px;
+      background: rgba(18,20,30,.92);
+      border: 1px solid rgba(255,255,255,.10);
+      box-shadow: 0 40px 120px rgba(0,0,0,.65);
+      overflow: hidden;
+      outline: none;
+    }
+    .nxLuTop{
+      padding: 16px 16px 12px 16px;
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap: 12px;
+    }
+    .nxLuTitle{
+      font-weight: 950;
+      font-size: 15px;
+      letter-spacing: .2px;
+      color: #fff;
+    }
+    .nxLuSub{
+      margin-top: 6px;
+      color: rgba(255,255,255,.70);
+      font-weight: 750;
+      font-size: 13px;
+      line-height: 1.35;
+    }
+    .nxLuBody{ padding: 0 16px 14px 16px; }
+    .nxLuMeta{
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 16px;
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.08);
+      color: rgba(255,255,255,.76);
+      font-weight: 800;
+      font-size: 12.5px;
+      line-height: 1.35;
+    }
+    .nxLuDivider{ height: 1px; background: rgba(255,255,255,.06); }
+    .nxLuActions{
+      padding: 12px 16px 16px 16px;
+      display:flex;
+      justify-content:flex-end;
+      gap: 10px;
+    }
+    .nxLuBtn{
+      border: none;
+      cursor: pointer;
+      border-radius: 14px;
+      padding: 11px 14px;
+      font-weight: 950;
+      color: #fff;
+      background: rgba(255,255,255,.08);
+      transition: transform .12s ease, background .16s ease;
+    }
+    .nxLuBtn:hover{ background: rgba(255,255,255,.12); transform: translateY(-1px); }
+    .nxLuBtn:active{ transform: translateY(0) scale(.98); }
+    .nxLuBtnPrimary{
+      background: rgba(124,92,255,.28);
+      border: 1px solid rgba(124,92,255,.22);
+    }
+    .nxLuBtnPrimary:hover{ background: rgba(124,92,255,.34); }
+
+    @keyframes nxLuFadeIn{
+      from{ opacity:0; transform: translateY(8px); }
+      to{ opacity:1; transform: translateY(0); }
+    }
+  `;
+  document.head.appendChild(s);
+}
+
+function openLauncherUpdatePopup(info) {
+  try {
+    if (window.__nxLauncherUpdatePopupShown) return;
+    window.__nxLauncherUpdatePopupShown = true;
+  } catch {}
+
+  ensureLauncherUpdatePopupStyles();
+
+  if (document.getElementById(NX_LU_POPUP_OVERLAY_ID)) return;
+
+  const overlay = document.createElement("div");
+  overlay.id = NX_LU_POPUP_OVERLAY_ID;
+  overlay.className = "nxLuOverlay";
+
+  const current = String(info?.current || "—");
+  const latest = String(info?.latest || "—");
+
+  overlay.innerHTML = `
+    <div class="nxLuCard" tabindex="-1" role="dialog" aria-modal="true">
+      <div class="nxLuTop">
+        <div style="min-width:0; flex:1;">
+          <div class="nxLuTitle">Launcher update available</div>
+          <div class="nxLuSub">A newer version of Nexus Launcher is ready to install.</div>
+        </div>
+      </div>
+
+      <div class="nxLuBody">
+        <div class="nxLuMeta">
+          Current: <strong>${current}</strong><br/>
+          Latest: <strong>${latest}</strong>
+        </div>
+      </div>
+
+      <div class="nxLuDivider"></div>
+
+      <div class="nxLuActions">
+        <button class="nxLuBtn" id="nxLuLaterBtn" type="button">Later</button>
+        <button class="nxLuBtn nxLuBtnPrimary" id="nxLuOpenSettingsBtn" type="button">Open Settings</button>
+      </div>
+    </div>
+  `;
+
+  const card = overlay.querySelector(".nxLuCard");
+  const laterBtn = overlay.querySelector("#nxLuLaterBtn");
+  const openBtn = overlay.querySelector("#nxLuOpenSettingsBtn");
+
+  let closing = false;
+  const prevOverflow = document.documentElement.style.overflow;
+
+  function close() {
+    if (closing) return;
+    closing = true;
+    document.removeEventListener("keydown", onKey);
+    try { document.documentElement.style.overflow = prevOverflow || ""; } catch {}
+    overlay.remove();
+  }
+
+  function onKey(e) {
+    if (e.key === "Escape") close();
+  }
+
+  // IMPORTANT: do NOT close on overlay clicks.
+  // Swallow clicks in the *bubbling* phase so buttons still receive their click events.
+  overlay.addEventListener("click", (e) => { e.stopPropagation(); }, false);
+  card?.addEventListener("click", (e) => { e.stopPropagation(); }, false);
+
+  laterBtn?.addEventListener("click", close);
+
+  openBtn?.addEventListener("click", () => {
+    close();
+    try { window.loadPage("settings"); } catch {}
+  });
+
+  document.addEventListener("keydown", onKey);
+  try { document.documentElement.style.overflow = "hidden"; } catch {}
+  document.body.appendChild(overlay);
+
+  // Avoid leaving a button focused (looks like the nav button is "selected")
+  try { card?.focus?.(); } catch {}
+}
+
+
+// ----------------------------
+// ✅ Launcher update startup popup
+// - Runs a silent launcher update check on startup
+// - Shows a modal if an update is available
+// - "Later" just closes; it will show again next launch if still available
+// - Clicking outside does NOT close
+// ----------------------------
+(function initLauncherUpdateStartupPopup() {
+  const STYLE_ID = "nxLuStartupPopupStyle";
+  const OVERLAY_ID = "nxLuStartupPopupOverlay";
+
+  function ensureStyles() {
+    if (document.getElementById(STYLE_ID)) return;
+
+    const s = document.createElement("style");
+    s.id = STYLE_ID;
+    s.textContent = `
+      .nxLuOverlay{
+        position:fixed; inset:0; z-index:99997;
+        display:grid; place-items:center;
+        padding:22px;
+        background: rgba(0,0,0,.62);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        animation: nxLuFadeIn .16s ease both;
+      }
+      .nxLuCard{
+        width:min(560px, 92vw);
+        border-radius:22px;
+        background: rgba(18,20,30,.92);
+        border:1px solid rgba(255,255,255,.10);
+        box-shadow: 0 34px 110px rgba(0,0,0,.65);
+        overflow:hidden;
+      }
+      .nxLuTop{
+        padding:16px 16px 12px 16px;
+        display:flex; gap:12px; align-items:flex-start;
+      }
+      .nxLuIcon{
+        width:42px; height:42px; border-radius:14px;
+        display:grid; place-items:center;
+        background: rgba(124,92,255,.14);
+        border: 1px solid rgba(124,92,255,.22);
+        flex:0 0 auto;
+      }
+      .nxLuIcon svg{
+        width:20px; height:20px;
+        stroke: rgba(255,255,255,.92);
+        fill:none;
+        stroke-width:2.2;
+        stroke-linecap:round;
+        stroke-linejoin:round;
+      }
+      .nxLuTitle{
+        font-size:16px;
+        font-weight:950;
+        letter-spacing:.2px;
+        margin-top:2px;
+        color:#fff;
+      }
+      .nxLuMsg{
+        margin-top:6px;
+        color: rgba(255,255,255,.72);
+        font-weight:650;
+        line-height:1.45;
+        font-size:13.5px;
+      }
+      .nxLuMeta{
+        margin-top:10px;
+        font-size:12.5px;
+        color: rgba(255,255,255,.72);
+        font-weight:800;
+        line-height:1.4;
+        background: rgba(255,255,255,.06);
+        border: 1px solid rgba(255,255,255,.08);
+        padding:10px 12px;
+        border-radius:14px;
+      }
+      .nxLuDivider{ height:1px; background: rgba(255,255,255,.06); }
+      .nxLuActions{
+        padding:14px 16px 16px 16px;
+        display:flex;
+        justify-content:flex-end;
+        gap:10px;
+      }
+      .nxLuBtn{
+        border:none;
+        cursor:pointer;
+        border-radius:14px;
+        padding:11px 14px;
+        font-weight:900;
+        color:#fff;
+        background: rgba(255,255,255,.08);
+        transition: transform .12s ease, background .16s ease, filter .16s ease;
+      }
+      .nxLuBtn:hover{ background: rgba(255,255,255,.12); transform: translateY(-1px); }
+      .nxLuBtn:active{ transform: translateY(0) scale(.98); }
+
+      .nxLuBtnPrimary{
+        background: rgba(124,92,255,.28);
+        border: 1px solid rgba(124,92,255,.22);
+      }
+      .nxLuBtnPrimary:hover{ background: rgba(124,92,255,.34); }
+
+      @keyframes nxLuFadeIn{
+        from{ opacity:0; transform: translateY(8px); }
+        to{ opacity:1; transform: translateY(0); }
+      }
+    `;
+    document.head.appendChild(s);
+  }
+
+  function closeExisting() {
+    try { document.getElementById(OVERLAY_ID)?.remove(); } catch {}
+  }
+
+  function openPopup(info) {
+    ensureStyles();
+    closeExisting();
+
+    const current = info?.current ? String(info.current) : "—";
+    const latest = info?.latest ? String(info.latest) : "";
+
+    const overlay = document.createElement("div");
+    overlay.id = OVERLAY_ID;
+    overlay.className = "nxLuOverlay";
+
+    overlay.innerHTML = `
+      <div class="nxLuCard" role="dialog" aria-modal="true">
+        <div class="nxLuTop">
+          <div class="nxLuIcon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M21 12a9 9 0 0 1-15.3 6.36"></path>
+              <path d="M3 12a9 9 0 0 1 15.3-6.36"></path>
+              <path d="M3 18v-5h5"></path>
+              <path d="M21 6v5h-5"></path>
+            </svg>
+          </div>
+          <div style="flex:1; min-width:0;">
+            <div class="nxLuTitle">Launcher update available</div>
+            <div class="nxLuMsg">Update Nexus Launcher to get the latest fixes and features.</div>
+            <div class="nxLuMeta">
+              Current: <strong>${current}</strong>${latest ? ` • Latest: <strong>${latest}</strong>` : ``}
+            </div>
+          </div>
+        </div>
+
+        <div class="nxLuDivider"></div>
+
+        <div class="nxLuActions">
+          <button class="nxLuBtn" data-act="later" type="button">Later</button>
+          <button class="nxLuBtn nxLuBtnPrimary" data-act="open-settings" type="button">Open Settings</button>
+        </div>
+      </div>
+    `;
+
+    const card = overlay.querySelector(".nxLuCard");
+    const laterBtn = overlay.querySelector('[data-act="later"]');
+    const openBtn = overlay.querySelector('[data-act="open-settings"]');
+
+    function close() {
+      document.removeEventListener("keydown", onKey);
+      try { overlay.remove(); } catch {}
+    }
+
+    function onKey(e) {
+      if (e.key === "Escape") close();
+    }
+
+    // ❌ Do NOT close on outside click.
+    // ✅ Still stop clicks from bubbling to any global handlers.
+    overlay.addEventListener("click", (e) => { e.stopPropagation(); }, false);
+    card?.addEventListener("click", (e) => { e.stopPropagation(); }, false);
+
+    laterBtn?.addEventListener("click", () => close());
+    openBtn?.addEventListener("click", () => {
+      close();
+      try { window.loadPage?.("settings"); } catch {}
+    });
+
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(overlay);
+
+    // Avoid focusing "Open Settings" (it looked selected)
+    setTimeout(() => {
+      try { laterBtn?.focus?.(); } catch {}
+    }, 0);
+  }
+
+  async function runStartupCheck() {
+    if (window.__nxStartupLauncherUpdateCheckDone) return;
+    window.__nxStartupLauncherUpdateCheckDone = true;
+
+    if (!navigator.onLine) return;
+    if (typeof window.api?.checkLauncherUpdate !== "function") return;
+
+    try {
+      const res = await window.api.checkLauncherUpdate();
+
+      // Keep a shared copy for Settings (and any badge you might add later)
+      try {
+        if (res && typeof res === "object") {
+          window.__nxLauncherUpdate = {
+            checked: !!res.ok,
+            current: String(res.current || ""),
+            latest: String(res.latest || ""),
+            hasUpdate: !!res.hasUpdate,
+            publishedAt: res.publishedAt || null,
+            checkedAt: Date.now()
+          };
+          if (typeof window.__nxSetSettingsUpdateBadge === "function") {
+            window.__nxSetSettingsUpdateBadge(!!res.hasUpdate);
+          }
+        }
+      } catch {}
+
+      if (res?.ok && res.hasUpdate) {
+        openPopup(res);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // Called by the boot flow after the first page mounts.
+  window.__nxScheduleLauncherUpdateStartupCheck = function () {
+    setTimeout(runStartupCheck, 850);
+  };
+})();
+
+
 // ✅ Default page (NOW READS SETTINGS startPage)
 (async () => {
   let start = "store";
@@ -492,6 +904,38 @@ document.querySelectorAll(".navBtn").forEach((btn) => {
       }
     }
   } catch {}
+
+
+// ✅ Silent launcher update check on open
+try {
+  if (!window.__nxStartupLauncherUpdateCheckDone) {
+    window.__nxStartupLauncherUpdateCheckDone = true;
+
+    if (navigator.onLine && typeof window.api?.checkLauncherUpdate === "function") {
+      setTimeout(async () => {
+        try {
+          const res = await window.api.checkLauncherUpdate({ silent: true });
+          if (!res?.ok) return;
+
+          // Keep shared state (Settings page reuses this)
+          try {
+            window.__nxLauncherUpdate = {
+              checked: true,
+              current: String(res.current || ""),
+              latest: String(res.latest || ""),
+              hasUpdate: !!res.hasUpdate,
+              checkedAt: Date.now()
+            };
+          } catch {}
+
+          if (res.hasUpdate) {
+            openLauncherUpdatePopup(res);
+          }
+        } catch {}
+      }, 900);
+    }
+  }
+} catch {}
 })();
 
 
