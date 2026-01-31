@@ -1729,6 +1729,39 @@ function pushNetStatus() {
 }
 
 // --------------------
+// ✅ Single instance (prevents 2 tray icons)
+// --------------------
+const gotTheLock = app.requestSingleInstanceLock();
+
+function openExistingInstance() {
+  if (!win || win.isDestroyed()) {
+    createWindow();
+    return;
+  }
+
+  const s = settings.readSettings();
+  const wantMax = (s.launchMode === "maximized" || s.launchMode === "fullscreen");
+
+  if (win.isMinimized()) win.restore();
+  win.show();
+  if (wantMax) win.maximize();
+  win.focus();
+}
+
+
+if (!gotTheLock) {
+  // Another instance is already running -> exit this one
+  app.exit(0);
+} else {
+  app.on("second-instance", (_event, argv) => {
+    // If the 2nd launch is your "startup hidden" launch, don't pop UI
+    const launchedHidden = argv.includes("--hidden");
+    if (!launchedHidden) openExistingInstance();
+    // If it *was* --hidden, just do nothing (keeps tray-only behavior)
+  });
+}
+
+// --------------------
 // App lifecycle
 // --------------------
 app.whenReady().then(() => {
