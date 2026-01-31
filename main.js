@@ -8,6 +8,11 @@ const http = require("http");
 const { spawn, execFile } = require("child_process");
 const { URL } = require("url");
 
+// ✅ FIX: Set App ID for Windows Notifications
+if (process.platform === 'win32') {
+  app.setAppUserModelId("com.cinder.nexuslauncher");
+}
+
 const installer = require("./backend/installer");
 const { DownloadManager } = require("./backend/downloadManager");
 const settings = require("./backend/settings");
@@ -539,7 +544,9 @@ async function getDirSizeBytes(rootDir) {
 function updateLoginItemSettings() {
   if (process.platform !== 'win32') return;
   const s = settings.readSettings();
-  const startAtLogin = !!s.system?.startAtLogin;
+  
+  // Default to TRUE if undefined (new requirement)
+  const startAtLogin = (s.system?.startAtLogin !== undefined) ? !!s.system.startAtLogin : true;
   
   app.setLoginItemSettings({
     openAtLogin: startAtLogin,
@@ -568,7 +575,7 @@ function sendNotification(title, body) {
 function createTray() {
   if (tray) return;
 
-  const iconPath = path.join(__dirname, "renderer/assets/icon.png"); // Assuming icon exists here
+  const iconPath = path.join(__dirname, "renderer/assets/icon.png"); 
   try {
     const icon = nativeImage.createFromPath(iconPath);
     tray = new Tray(icon);
@@ -615,7 +622,10 @@ function createWindow() {
   const s = settings.readSettings();
   const raw = String(s.launchMode || "windowed").toLowerCase();
   const startMode = raw === "fullscreen" ? "maximized" : raw;
-  const startMinimized = process.argv.includes('--hidden') || (s.system && s.system.startMinimized);
+  
+  // Default to TRUE if undefined (new requirement)
+  const userStartMin = (s.system?.startMinimized !== undefined) ? !!s.system.startMinimized : true;
+  const startMinimized = process.argv.includes('--hidden') || userStartMin;
 
   win = new BrowserWindow({
     width: 1400,
@@ -647,7 +657,8 @@ function createWindow() {
   // ✅ Handle "Close to Tray"
   win.on('close', (event) => {
     const currentSettings = settings.readSettings();
-    const closeToTray = currentSettings.system?.closeToTray;
+    // Default to TRUE if undefined
+    const closeToTray = (currentSettings.system?.closeToTray !== undefined) ? !!currentSettings.system.closeToTray : true;
 
     if (!isQuitting && closeToTray) {
       event.preventDefault();
