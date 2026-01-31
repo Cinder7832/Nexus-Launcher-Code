@@ -540,20 +540,33 @@ async function getDirSizeBytes(rootDir) {
 // ✅ SYSTEM FUNCTIONS
 // --------------------
 
-// Apply "Start on Startup" settings
 function updateLoginItemSettings() {
-  if (process.platform !== 'win32') return;
+  if (process.platform !== "win32") return;
+
   const s = settings.readSettings();
-  
-  // Default to TRUE if undefined (new requirement)
-  const startAtLogin = (s.system?.startAtLogin !== undefined) ? !!s.system.startAtLogin : true;
-  
-  app.setLoginItemSettings({
-    openAtLogin: startAtLogin,
-    path: app.getPath('exe'),
-    args: ['--hidden'] // Argument to check if we want to start minimized
-  });
+  const startAtLogin =
+    s.system?.startAtLogin !== undefined ? !!s.system.startAtLogin : true;
+
+  // Always pass a flag so your app knows to hide
+  const extraArgs = ["--hidden"];
+
+  // ✅ Packaged: app.getPath('exe') is your real launcher exe (good)
+  // ✅ Dev: app.getPath('exe') is electron.exe, so we MUST pass the app path as the first arg
+  if (app.isPackaged) {
+    app.setLoginItemSettings({
+      openAtLogin: startAtLogin,
+      path: app.getPath("exe"),
+      args: extraArgs
+    });
+  } else {
+    app.setLoginItemSettings({
+      openAtLogin: startAtLogin,
+      path: process.execPath,          // electron.exe
+      args: [app.getAppPath(), ...extraArgs] // <-- critical: give electron the app folder
+    });
+  }
 }
+
 
 function sendNotification(title, body) {
   if (!Notification.isSupported()) return;
