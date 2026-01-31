@@ -580,15 +580,27 @@ function createTray() {
     const icon = nativeImage.createFromPath(iconPath);
     tray = new Tray(icon);
     
+    // ✅ IMPROVED TRAY CLICK HANDLER
+    const openHandler = () => {
+      if (!win) return;
+      
+      const isHidden = !win.isVisible();
+      const s = settings.readSettings();
+      const wantMax = (s.launchMode === 'maximized' || s.launchMode === 'fullscreen');
+
+      win.show(); 
+      if (win.isMinimized()) win.restore();
+
+      // If opening from hidden state and user prefers maximized, ensure it maximizes
+      if (isHidden && wantMax) {
+        win.maximize();
+      }
+    };
+
     const contextMenu = Menu.buildFromTemplate([
       { 
         label: 'Open Nexus Launcher', 
-        click: () => {
-          if (win) {
-            win.show();
-            if (win.isMinimized()) win.restore();
-          }
-        } 
+        click: openHandler
       },
       { type: 'separator' },
       { 
@@ -603,12 +615,7 @@ function createTray() {
     tray.setToolTip('Nexus Launcher');
     tray.setContextMenu(contextMenu);
     
-    tray.on('double-click', () => {
-      if (win) {
-        win.show();
-        if (win.isMinimized()) win.restore();
-      }
-    });
+    tray.on('double-click', openHandler);
 
   } catch (e) {
     console.error("Failed to create tray:", e);
@@ -620,17 +627,27 @@ function createTray() {
 // --------------------
 function createWindow() {
   const s = settings.readSettings();
-  const raw = String(s.launchMode || "windowed").toLowerCase();
-  const startMode = raw === "fullscreen" ? "maximized" : raw;
   
-  // Default to TRUE if undefined (new requirement)
-  const userStartMin = (s.system?.startMinimized !== undefined) ? !!s.system.startMinimized : true;
-  const startMinimized = process.argv.includes('--hidden') || userStartMin;
+  // ✅ ROBUST STARTUP DETECTION
+  // Check if Windows launched us OR if we have the arg manually passed
+  const loginSettings = app.getLoginItemSettings();
+  const isLoginStartup = loginSettings.wasOpenedAtLogin || process.argv.includes('--hidden');
+  
+  // ✅ CHECK USER PREFERENCE
+  // If 'startMinimized' is missing (new user), default to TRUE
+  const settingStartMin = (s.system?.startMinimized !== undefined) ? !!s.system.startMinimized : true;
+  
+  // ✅ FINAL LOGIC:
+  // If we detected it's a startup launch AND the user wants it minimized -> Hide.
+  const shouldStartHidden = (isLoginStartup && settingStartMin);
+
+  const rawMode = String(s.launchMode || "windowed").toLowerCase();
+  const startMode = rawMode === "fullscreen" ? "maximized" : rawMode;
 
   win = new BrowserWindow({
     width: 1400,
     height: 820,
-    show: false, // Don't show immediately
+    show: false, // ✅ ALWAYS start hidden initially
     backgroundColor: "#0b0d12",
     autoHideMenuBar: true,
     webPreferences: {
@@ -644,14 +661,20 @@ function createWindow() {
   win.loadFile(path.join(__dirname, "renderer/index.html"));
 
   win.once("ready-to-show", () => {
+    // ✅ CRITICAL FIX: If we are supposed to start hidden, DO NOT TOUCH THE WINDOW.
+    // Calling win.maximize() here forces the window to appear, bypassing 'show: false'.
+    if (shouldStartHidden) {
+      console.log("Startup: Launching silently to tray.");
+      return; 
+    }
+
+    // Normal launch: Restore maximized state if needed, then show.
     try {
       if (startMode === "maximized") win.maximize();
       else win.unmaximize?.();
     } catch {}
 
-    if (!startMinimized) {
-      win.show();
-    }
+    win.show();
   });
 
   // ✅ Handle "Close to Tray"
