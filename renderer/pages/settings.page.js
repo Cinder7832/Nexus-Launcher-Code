@@ -188,12 +188,42 @@
         transform:none;
       }
 
+      /* ✅ NEW: Toggle Switch Styles */
+      .nxToggle {
+        appearance: none;
+        width: 44px; height: 24px;
+        background: rgba(255,255,255,.1);
+        border-radius: 20px;
+        position: relative;
+        cursor: pointer;
+        transition: background .2s ease, border-color .2s ease;
+        border: 1px solid rgba(255,255,255,.12);
+        flex: 0 0 auto;
+      }
+      /* ✅ Changed to #7c5cff (Purple) to match UI style */
+      .nxToggle:checked {
+        background: #7c5cff;
+        border-color: #7c5cff;
+      }
+      .nxToggle::after {
+        content:''; position: absolute;
+        top: 2px; left: 2px;
+        width: 18px; height: 18px;
+        background: #fff;
+        border-radius: 50%;
+        transition: transform .2s cubic-bezier(.4,0,.2,1);
+        box-shadow: 0 1px 3px rgba(0,0,0,.3);
+      }
+      .nxToggle:checked::after {
+        transform: translateX(20px);
+      }
+
       .nxLaunchSub strong{ color: rgba(255,255,255,.86); }
     `;
     document.head.appendChild(s);
   }
 
-  // ✅ New layout styles (just organization)
+  // ✅ New layout styles
   function ensureLayoutStyles() {
     if (document.getElementById(LAYOUT_STYLE_ID)) return;
 
@@ -220,7 +250,6 @@
         min-width: 0;
       }
 
-      /* Use your existing panel style, just ensure full width */
       .nxSettingsLeft .panel,
       .nxSettingsRight .panel{
         width: 100%;
@@ -429,27 +458,23 @@
     document.documentElement.style.setProperty("--nxTileMax", `${m.max}px`);
   }
 
-  
   function wireWebsiteButton(btn) {
     if (!btn) return;
     if (btn.dataset.nxBound === "1") return;
     btn.dataset.nxBound = "1";
 
     btn.addEventListener("click", async () => {
-      // Prefer IPC-backed safe open if available
       try {
         if (window.api?.openExternal) {
           const res = await window.api.openExternal(WEBSITE_URL);
           if (res?.ok) return;
         }
       } catch {}
-
-      // Fallback: may be blocked by Electron depending on your config
       try { window.open(WEBSITE_URL, "_blank"); } catch {}
     });
   }
 
-// --- UI injections (unchanged) ---
+// --- UI injections ---
 
   function injectLaunchModeUI(currentMode, onChange) {
     ensureLaunchModeStyles();
@@ -619,6 +644,70 @@
     }
   }
 
+  function renderSystemPanel(host, sys) {
+    if (!host) return;
+    host.innerHTML = ""; 
+
+    const opts = [
+      { id: "startAtLogin", title: "Start on startup", sub: "Launch automatically when Windows starts" },
+      { id: "startMinimized", title: "Start minimized", sub: "Launch silently to the system tray" },
+      { id: "closeToTray", title: "Close to tray", sub: "Keep running in background when window closes" }
+    ];
+
+    opts.forEach(opt => {
+      const row = document.createElement("div");
+      row.className = "nxLaunchRow";
+      row.innerHTML = `
+        <div class="nxLaunchLeft">
+          <div class="nxLaunchTitle">${opt.title}</div>
+          <div class="nxLaunchSub">${opt.sub}</div>
+        </div>
+        <input type="checkbox" class="nxToggle" ${sys?.[opt.id] ? "checked" : ""}>
+      `;
+      
+      const chk = row.querySelector("input");
+      chk.onchange = (e) => {
+        if (window.api?.setSystemSettings) {
+          window.api.setSystemSettings({ [opt.id]: e.target.checked });
+        }
+      };
+      
+      host.appendChild(row);
+    });
+  }
+
+  function renderNotificationsPanel(host, notif) {
+    if (!host) return;
+    host.innerHTML = "";
+
+    const opts = [
+      { id: "onLauncherUpdate", title: "Launcher updates", sub: "Notify when a new launcher version is available" },
+      { id: "onGameUpdate", title: "Game updates", sub: "Notify when installed games receive updates" },
+      { id: "onNewRelease", title: "New releases", sub: "Notify when new games are added to the store" }
+    ];
+
+    opts.forEach(opt => {
+      const row = document.createElement("div");
+      row.className = "nxLaunchRow";
+      row.innerHTML = `
+        <div class="nxLaunchLeft">
+          <div class="nxLaunchTitle">${opt.title}</div>
+          <div class="nxLaunchSub">${opt.sub}</div>
+        </div>
+        <input type="checkbox" class="nxToggle" ${notif?.[opt.id] ? "checked" : ""}>
+      `;
+      
+      const chk = row.querySelector("input");
+      chk.onchange = (e) => {
+        if (window.api?.setNotificationSettings) {
+          window.api.setNotificationSettings({ [opt.id]: e.target.checked });
+        }
+      };
+      
+      host.appendChild(row);
+    });
+  }
+
   function injectLauncherUpdateUI(opts) {
     ensureLaunchModeStyles();
 
@@ -628,12 +717,8 @@
     const panel = input.closest(".panel");
     if (!panel) return;
 
-    // ✅ IMPORTANT: this row is moved into the separate "Updates" panel.
-    // If we only check inside the original settings panel, re-renders (like
-    // hitting Refresh) can accidentally inject duplicates.
     const all = Array.from(document.querySelectorAll('[data-nx-launcherupd="1"]'));
     if (all.length) {
-      // If duplicates already exist (from a previous bug), keep the first and remove the rest.
       for (let i = 1; i < all.length; i++) {
         try { all[i].remove(); } catch {}
       }
@@ -643,7 +728,6 @@
       const checkBtn = existing.querySelector("#nxLauncherCheckBtn");
       const installBtn = existing.querySelector("#nxLauncherInstallBtn");
 
-      // Keep the displayed version fresh on refresh.
       if (sub && opts?.current) {
         sub.innerHTML = `Current version: <strong>${opts.current}</strong>`;
       }
@@ -691,19 +775,20 @@
     return `${mb.toFixed(1)} MB/s`;
   }
 
-  // ✅ Mount layout + split Updates out of the main panel (no logic changes)
+  // ✅ Mount layout + split Updates out of the main panel
   function mountLayoutAndSplitUpdates() {
     ensureLayoutStyles();
 
     const page = document.getElementById("page");
     if (!page) return null;
 
-    // already mounted
     if (page.querySelector(".nxSettingsGrid")) {
       return {
         updatesHost: page.querySelector("#nxUpdatesHost"),
         installedVal: page.querySelector("#nxInstalledGamesVal"),
-        websiteBtn: page.querySelector("#nxWebsiteBtn")
+        websiteBtn: page.querySelector("#nxWebsiteBtn"),
+        systemHost: page.querySelector("#nxSystemHost"),
+        notifHost: page.querySelector("#nxNotifHost")
       };
     }
 
@@ -723,7 +808,20 @@
     const right = document.createElement("div");
     right.className = "nxSettingsRight";
 
-    // Updates panel (we will move the launcher update row into here)
+    const systemPanel = document.createElement("div");
+    systemPanel.className = "panel";
+    systemPanel.innerHTML = `
+      <div class="panelTitle">System</div>
+      <div id="nxSystemHost"></div>
+    `;
+
+    const notifPanel = document.createElement("div");
+    notifPanel.className = "panel";
+    notifPanel.innerHTML = `
+      <div class="panelTitle">Notifications</div>
+      <div id="nxNotifHost"></div>
+    `;
+
     const updatesPanel = document.createElement("div");
     updatesPanel.className = "panel";
     updatesPanel.innerHTML = `
@@ -732,7 +830,6 @@
       <div class="nxTinyNote">Download progress will appear here while updating the launcher</div>
     `;
 
-    // Library panel (only thing you asked to add)
     const libraryPanel = document.createElement("div");
     libraryPanel.className = "panel";
     libraryPanel.innerHTML = `
@@ -743,7 +840,6 @@
       </div>
     `;
 
-    // Website panel (link out)
     const websitePanel = document.createElement("div");
     websitePanel.className = "panel";
     websitePanel.innerHTML = `
@@ -760,9 +856,13 @@
     const parent = mainPanel.parentElement;
     parent.insertBefore(grid, mainPanel);
 
+    // Left Column
     left.appendChild(mainPanel);
-    left.appendChild(updatesPanel);
-
+    left.appendChild(systemPanel);
+    left.appendChild(notifPanel);
+    
+    // ✅ Right Column: Updates at the very top!
+    right.appendChild(updatesPanel); 
     right.appendChild(libraryPanel);
     right.appendChild(websitePanel);
 
@@ -772,7 +872,9 @@
     return {
       updatesHost: updatesPanel.querySelector("#nxUpdatesHost"),
       installedVal: libraryPanel.querySelector("#nxInstalledGamesVal"),
-      websiteBtn: websitePanel.querySelector("#nxWebsiteBtn")
+      websiteBtn: websitePanel.querySelector("#nxWebsiteBtn"),
+      systemHost: systemPanel.querySelector("#nxSystemHost"),
+      notifHost: notifPanel.querySelector("#nxNotifHost")
     };
   }
 
@@ -792,31 +894,28 @@
     const btn = document.getElementById("changeInstallRoot");
     if (!input || !btn) return;
 
-    // Build layout first (doesn't change existing controls)
+    // Build layout first
     const layout = mountLayoutAndSplitUpdates();
 
     let launchMode = "windowed";
     let startPage = "store";
     let gridColumns = 3;
 
-    // launcher update state
     let launcherCurrent = "—";
     let launcherLatest = null;
     let launcherHasUpdate = false;
     let launcherChecked = false;
 
-// ✅ If app.js already checked for launcher updates on startup, reuse that state here.
-try {
-  const st = window.__nxLauncherUpdate;
-  if (st && typeof st === "object") {
-    if (st.current) launcherCurrent = String(st.current);
-    if (st.latest) launcherLatest = String(st.latest);
-    if (typeof st.hasUpdate === "boolean") launcherHasUpdate = !!st.hasUpdate;
-    if (typeof st.checked === "boolean") launcherChecked = !!st.checked;
-  }
-} catch {}
+    try {
+      const st = window.__nxLauncherUpdate;
+      if (st && typeof st === "object") {
+        if (st.current) launcherCurrent = String(st.current);
+        if (st.latest) launcherLatest = String(st.latest);
+        if (typeof st.hasUpdate === "boolean") launcherHasUpdate = !!st.hasUpdate;
+        if (typeof st.checked === "boolean") launcherChecked = !!st.checked;
+      }
+    } catch {}
 
-    // load current settings
     try {
       const s = await window.api.getSettings();
       input.value = s?.installRoot || "";
@@ -824,35 +923,34 @@ try {
       startPage = normalizeStartPage(s?.startPage);
       gridColumns = normalizeGridColumns(s?.gridColumns);
       applyGridColumns(gridColumns);
+
+      renderSystemPanel(layout?.systemHost, s?.system);
+      renderNotificationsPanel(layout?.notifHost, s?.notifications);
+
     } catch (e) {
       console.error(e);
       input.value = "";
       applyGridColumns(3);
     }
 
-    // update installed games count (the only extra info)
     await refreshInstalledCount(layout?.installedVal);
 
-    // Wire Website button (right-side island)
     try { wireWebsiteButton(layout?.websiteBtn || document.getElementById("nxWebsiteBtn")); } catch {}
 
-    // get current launcher version
     try {
       const v = await window.api.getLauncherVersion?.();
       if (v?.ok && v?.version) launcherCurrent = String(v.version);
     } catch {}
 
-
-// ✅ Restore launcher update state (downloaded/ready) even after tab switches.
-try {
-  const st2 = await window.api.getLauncherUpdateState?.();
-  if (st2?.ok) {
-    if (st2.current) launcherCurrent = String(st2.current);
-    if (st2.latest) launcherLatest = String(st2.latest);
-    if (typeof st2.hasUpdate === "boolean") launcherHasUpdate = !!st2.hasUpdate;
-    if (typeof st2.checked === "boolean") launcherChecked = !!st2.checked;
-  }
-} catch {}
+    try {
+      const st2 = await window.api.getLauncherUpdateState?.();
+      if (st2?.ok) {
+        if (st2.current) launcherCurrent = String(st2.current);
+        if (st2.latest) launcherLatest = String(st2.latest);
+        if (typeof st2.hasUpdate === "boolean") launcherHasUpdate = !!st2.hasUpdate;
+        if (typeof st2.checked === "boolean") launcherChecked = !!st2.checked;
+      }
+    } catch {}
 
     injectLaunchModeUI(launchMode, async (mode) => {
       if (!window.api?.setLaunchMode) return;
@@ -886,112 +984,106 @@ try {
 
     const updUI = injectLauncherUpdateUI({ current: launcherCurrent });
 
-// ✅ Keep a shared copy of the latest launcher update check
-try {
-  window.__nxLauncherUpdate = {
-    checked: !!launcherChecked,
-    current: launcherCurrent,
-    latest: launcherLatest,
-    hasUpdate: !!launcherHasUpdate,
-    checkedAt: Date.now()
-  };
-  if (typeof window.__nxSetSettingsUpdateBadge === "function") {
-    window.__nxSetSettingsUpdateBadge(!!launcherHasUpdate);
-  }
-} catch {}
+    try {
+      window.__nxLauncherUpdate = {
+        checked: !!launcherChecked,
+        current: launcherCurrent,
+        latest: launcherLatest,
+        hasUpdate: !!launcherHasUpdate,
+        checkedAt: Date.now()
+      };
+      if (typeof window.__nxSetSettingsUpdateBadge === "function") {
+        window.__nxSetSettingsUpdateBadge(!!launcherHasUpdate);
+      }
+    } catch {}
 
-function applyLauncherDownloadState(d, els) {
-  if (!d || String(d.gameId) !== "__launcher__") return;
-  const sub = els?.sub || document.getElementById("nxLauncherUpdSub");
-  const installBtn = els?.installBtn || document.getElementById("nxLauncherInstallBtn");
-  const checkBtn = els?.checkBtn || document.getElementById("nxLauncherCheckBtn");
-  if (!sub || !installBtn || !checkBtn) return;
+    function applyLauncherDownloadState(d, els) {
+      if (!d || String(d.gameId) !== "__launcher__") return;
+      const sub = els?.sub || document.getElementById("nxLauncherUpdSub");
+      const installBtn = els?.installBtn || document.getElementById("nxLauncherInstallBtn");
+      const checkBtn = els?.checkBtn || document.getElementById("nxLauncherCheckBtn");
+      if (!sub || !installBtn || !checkBtn) return;
 
-  const pct = Math.max(0, Math.min(100, Number(d.percent || 0)));
-  const sp = prettySpeed(d.speed);
-  const status = String(d.status || "");
-  const hasUpd = !!(window.__nxLauncherUpdate?.hasUpdate);
+      const pct = Math.max(0, Math.min(100, Number(d.percent || 0)));
+      const sp = prettySpeed(d.speed);
+      const status = String(d.status || "");
+      const hasUpd = !!(window.__nxLauncherUpdate?.hasUpdate);
 
-  if (status === "downloading" || status === "queued" || status === "paused") {
-    sub.textContent = `Downloading launcher update… ${pct.toFixed(0)}%${sp ? ` • ${sp}` : ""}`;
-    checkBtn.disabled = true;
-    installBtn.disabled = true;
-    installBtn.textContent = "Downloading…";
-    installBtn.dataset.phase = "download";
-    return;
-  }
+      if (status === "downloading" || status === "queued" || status === "paused") {
+        sub.textContent = `Downloading launcher update… ${pct.toFixed(0)}%${sp ? ` • ${sp}` : ""}`;
+        checkBtn.disabled = true;
+        installBtn.disabled = true;
+        installBtn.textContent = "Downloading…";
+        installBtn.dataset.phase = "download";
+        return;
+      }
 
-  if (status === "completed") {
-    sub.textContent = `Downloaded. Click “Install now” to run the installer.`;
-    checkBtn.disabled = false;
-    installBtn.disabled = false;
-    installBtn.textContent = "Install now";
-    installBtn.dataset.phase = "install-ready";
-    return;
-  }
+      if (status === "completed") {
+        sub.textContent = `Downloaded. Click “Install now” to run the installer.`;
+        checkBtn.disabled = false;
+        installBtn.disabled = false;
+        installBtn.textContent = "Install now";
+        installBtn.dataset.phase = "install-ready";
+        return;
+      }
 
-  if (status === "error") {
-    sub.textContent = `Download failed. Try again.`;
-    checkBtn.disabled = false;
-    installBtn.disabled = !hasUpd;
-    installBtn.textContent = "Download & Install";
-    installBtn.dataset.phase = "download";
-    return;
-  }
+      if (status === "error") {
+        sub.textContent = `Download failed. Try again.`;
+        checkBtn.disabled = false;
+        installBtn.disabled = !hasUpd;
+        installBtn.textContent = "Download & Install";
+        installBtn.dataset.phase = "download";
+        return;
+      }
 
-  if (status === "canceled") {
-    sub.textContent = `Download canceled.`;
-    checkBtn.disabled = false;
-    installBtn.disabled = !hasUpd;
-    installBtn.textContent = "Download & Install";
-    installBtn.dataset.phase = "download";
-    return;
-  }
-}
-
-async function restoreLauncherUpdateProgress() {
-  try {
-    // 1) Use most recent download progress event (if any)
-    const d0 = window.__nxLauncherDownloadState;
-    if (d0 && String(d0.gameId) === "__launcher__") {
-      applyLauncherDownloadState(d0);
-      return;
+      if (status === "canceled") {
+        sub.textContent = `Download canceled.`;
+        checkBtn.disabled = false;
+        installBtn.disabled = !hasUpd;
+        installBtn.textContent = "Download & Install";
+        installBtn.dataset.phase = "download";
+        return;
+      }
     }
 
-    // 2) Ask main-process for persisted state (downloaded installer survives page switches)
-    if (typeof window.api?.getLauncherUpdateState !== "function") return;
-    const st = await window.api.getLauncherUpdateState();
-    if (!st || !st.ok) return;
+    async function restoreLauncherUpdateProgress() {
+      try {
+        const d0 = window.__nxLauncherDownloadState;
+        if (d0 && String(d0.gameId) === "__launcher__") {
+          applyLauncherDownloadState(d0);
+          return;
+        }
 
-    // If a download is in progress but we don't have percent, show a generic state.
-    if (st.downloading) {
-      applyLauncherDownloadState({
-        gameId: "__launcher__",
-        status: "downloading",
-        percent: 0,
-        speed: 0
-      });
-      return;
+        if (typeof window.api?.getLauncherUpdateState !== "function") return;
+        const st = await window.api.getLauncherUpdateState();
+        if (!st || !st.ok) return;
+
+        if (st.downloading) {
+          applyLauncherDownloadState({
+            gameId: "__launcher__",
+            status: "downloading",
+            percent: 0,
+            speed: 0
+          });
+          return;
+        }
+
+        if (st.downloaded && st.installerPath) {
+          applyLauncherDownloadState({
+            gameId: "__launcher__",
+            status: "completed",
+            percent: 100,
+            speed: 0,
+            destPath: st.installerPath
+          });
+          return;
+        }
+      } catch {}
     }
 
-    // If already downloaded for the latest version, mark as install-ready.
-    if (st.downloaded && st.installerPath) {
-      applyLauncherDownloadState({
-        gameId: "__launcher__",
-        status: "completed",
-        percent: 100,
-        speed: 0,
-        destPath: st.installerPath
-      });
-      return;
-    }
-  } catch {}
-}
+    restoreLauncherUpdateProgress();
 
-// Run once each time Settings renders (fixes: download "cancels" visually when you switch tabs)
-restoreLauncherUpdateProgress();
-
-    // ✅ Move the launcher update row into the Updates panel (keeps all listeners working)
+    // ✅ Move the launcher update row into the Updates panel (Right Column Top)
     try {
       const panel = input.closest(".panel");
       const updRow = panel?.querySelector?.('[data-nx-launcherupd="1"]');
@@ -1008,50 +1100,12 @@ restoreLauncherUpdateProgress();
 
       window.api?.onDownloadUpdated?.((d) => {
         if (!d || String(d.gameId) !== "__launcher__") return;
-
-        // keep the latest state globally so the UI can restore after tab switches
         try { window.__nxLauncherDownloadState = d; } catch {}
-
         const sub = document.getElementById("nxLauncherUpdSub");
         const installBtn = document.getElementById("nxLauncherInstallBtn");
         const checkBtn = document.getElementById("nxLauncherCheckBtn");
         if (!sub || !installBtn || !checkBtn) return;
-
-        const pct = Math.max(0, Math.min(100, Number(d.percent || 0)));
-        const sp = prettySpeed(d.speed);
-        const status = String(d.status || "");
-        const hasUpd = !!(window.__nxLauncherUpdate?.hasUpdate);
-
-        if (status === "downloading") {
-          sub.textContent = `Downloading launcher update… ${pct.toFixed(0)}%${sp ? ` • ${sp}` : ""}`;
-          checkBtn.disabled = true;
-          installBtn.disabled = true;
-          installBtn.textContent = "Downloading…";
-        }
-
-        if (status === "completed") {
-          sub.textContent = `Downloaded. Click “Install now” to run the installer.`;
-          checkBtn.disabled = false;
-          installBtn.disabled = false;
-          installBtn.textContent = "Install now";
-          installBtn.dataset.phase = "install-ready";
-        }
-
-        if (status === "error") {
-          sub.textContent = `Download failed. Try again.`;
-          checkBtn.disabled = false;
-          installBtn.disabled = !hasUpd;
-          installBtn.textContent = "Download & Install";
-          installBtn.dataset.phase = "download";
-        }
-
-        if (status === "canceled") {
-          sub.textContent = `Download canceled.`;
-          checkBtn.disabled = false;
-          installBtn.disabled = !hasUpd;
-          installBtn.textContent = "Download & Install";
-          installBtn.dataset.phase = "download";
-        }
+        applyLauncherDownloadState(d, { sub, installBtn, checkBtn });
       });
 
       window.api?.onLauncherUpdateReady?.(() => {
@@ -1059,7 +1113,6 @@ restoreLauncherUpdateProgress();
         const installBtn = document.getElementById("nxLauncherInstallBtn");
         const checkBtn = document.getElementById("nxLauncherCheckBtn");
         if (!sub || !installBtn || !checkBtn) return;
-
         sub.textContent = `Downloaded. Click “Install now” to run the installer.`;
         checkBtn.disabled = false;
         installBtn.disabled = false;
@@ -1103,18 +1156,18 @@ restoreLauncherUpdateProgress();
           launcherLatest = String(res.latest || "");
           launcherHasUpdate = !!res.hasUpdate;
 
-try {
-  window.__nxLauncherUpdate = {
-    checked: true,
-    current: launcherCurrent,
-    latest: launcherLatest,
-    hasUpdate: !!launcherHasUpdate,
-    checkedAt: Date.now()
-  };
-  if (typeof window.__nxSetSettingsUpdateBadge === "function") {
-    window.__nxSetSettingsUpdateBadge(!!launcherHasUpdate);
-  }
-} catch {}
+          try {
+            window.__nxLauncherUpdate = {
+              checked: true,
+              current: launcherCurrent,
+              latest: launcherLatest,
+              hasUpdate: !!launcherHasUpdate,
+              checkedAt: Date.now()
+            };
+            if (typeof window.__nxSetSettingsUpdateBadge === "function") {
+              window.__nxSetSettingsUpdateBadge(!!launcherHasUpdate);
+            }
+          } catch {}
 
           if (!launcherHasUpdate) {
             sub.innerHTML = `Up to date. Current version: <strong>${launcherCurrent}</strong>`;
@@ -1139,10 +1192,8 @@ try {
 
       installBtn.onclick = async () => {
         if (!launcherChecked || !launcherHasUpdate) return;
-
         const phase = String(installBtn.dataset.phase || "download");
 
-        // Phase 1: download
         if (phase === "download") {
           const ok = await confirmLauncherUpdate(launcherLatest || "?");
           if (!ok) return;
@@ -1164,7 +1215,6 @@ try {
               installBtn.dataset.phase = "download";
               return;
             }
-
             sub.textContent = "Downloading launcher update…";
             try { window.__nxLauncherDownloadState = { ...(window.__nxLauncherDownloadState||{}), gameId: "__launcher__", status: "downloading", percent: 0, speed: 0 }; } catch {}
           } catch (e) {
@@ -1178,7 +1228,6 @@ try {
           return;
         }
 
-        // Phase 2: install (already downloaded)
         if (phase === "install-ready") {
           const ok = await confirmLauncherUpdate(launcherLatest || "?");
           if (!ok) return;
@@ -1202,22 +1251,16 @@ try {
           }
         }
       };
-
       setIdle();
-
-      // Restore download/install state after wiring handlers
       restoreLauncherUpdateProgress();
     }
 
     btn.onclick = async () => {
       if (!window.api?.pickInstallRoot || !window.api?.setInstallRoot) return;
-
       const before = String(input.value || "");
       const chosen = await window.api.pickInstallRoot();
       if (!chosen) return;
-
       const after = String(chosen);
-
       if (before && after && before === after) {
         const s = await window.api.setInstallRoot(after);
         input.value = s?.installRoot || after;
@@ -1227,35 +1270,22 @@ try {
       let installed = {};
       try { installed = await window.api.getInstalled(); } catch {}
       const installedCount = installed ? Object.keys(installed).length : 0;
-
       const s = await window.api.setInstallRoot(after);
       input.value = s?.installRoot || after;
-
-      // update the count after changing root
       await refreshInstalledCount(layout?.installedVal);
-
-    // Wire Website button (right-side island)
-    try { wireWebsiteButton(layout?.websiteBtn || document.getElementById("nxWebsiteBtn")); } catch {}
+      try { wireWebsiteButton(layout?.websiteBtn || document.getElementById("nxWebsiteBtn")); } catch {}
 
       if (installedCount === 0) return;
-
       const doMove = await confirmMigrate(before, after);
       if (!doMove) return;
 
       if (!window.api?.migrateGames) return;
-
       try {
         const res = await window.api.migrateGames({ fromRoot: before, toRoot: after });
         console.log("Migration result:", res);
-      } catch (e) {
-        console.error(e);
-      }
-
-      // refresh after migration
+      } catch (e) { console.error(e); }
       await refreshInstalledCount(layout?.installedVal);
-
-    // Wire Website button (right-side island)
-    try { wireWebsiteButton(layout?.websiteBtn || document.getElementById("nxWebsiteBtn")); } catch {}
+      try { wireWebsiteButton(layout?.websiteBtn || document.getElementById("nxWebsiteBtn")); } catch {}
     };
   };
 })();

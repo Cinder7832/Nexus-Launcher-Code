@@ -45,8 +45,8 @@ function defaultInstallRoot() {
 
 // ✅ DEFAULT = maximized (also handles missing/invalid values safely)
 function normalizeLaunchMode(v) {
-  const m = String(v || "maximized").toLowerCase(); // ✅ fallback default
-  if (m === "fullscreen") return "maximized";       // legacy safety
+  const m = String(v || "maximized").toLowerCase(); 
+  if (m === "fullscreen") return "maximized";       
   return m === "maximized" ? "maximized" : "windowed";
 }
 
@@ -55,21 +55,40 @@ function normalizeStartPage(v) {
   return p === "library" ? "library" : "store";
 }
 
-// ✅ DEFAULT = 4 (also handles missing/invalid values safely)
+// ✅ DEFAULT = 4
 function normalizeGridColumns(v) {
   const n = Number(v);
   if (n === 3) return 3;
   if (n === 4) return 4;
   if (n === 5) return 5;
-  return 4; // ✅ default fallback = 4
+  return 4;
 }
 
 function defaultSettings() {
   return {
     installRoot: defaultInstallRoot(),
-    launchMode: "maximized", // ✅ default = maximized
-    startPage: "store",      // store | library
-    gridColumns: 4           // ✅ default = 4
+    launchMode: "maximized", // store | library
+    startPage: "store",      
+    gridColumns: 4,
+    
+    // ✅ NEW: System Settings (All TRUE by default now)
+    system: {
+      startAtLogin: true,
+      startMinimized: true,
+      closeToTray: true
+    },
+
+    // ✅ NEW: Notification Settings
+    notifications: {
+      onLauncherUpdate: true,
+      onGameUpdate: true,
+      onNewRelease: true
+    },
+    
+    // Legacy announcements data
+    announcementsSeen: { lastSeenId: null, lastSeenAt: 0 },
+    // Legacy auto-update map
+    autoUpdateByGameId: {}
   };
 }
 
@@ -94,7 +113,17 @@ function readSettings() {
 
   try {
     const s = JSON.parse(fs.readFileSync(p, "utf-8"));
-    const merged = { ...defaultSettings(), ...(s || {}) };
+    const defaults = defaultSettings();
+    
+    // Deep merge to ensure nested objects (system/notifications) exist
+    // This logic ensures that if a key is missing in the user's file (new feature), 
+    // it falls back to the 'defaults' (true), but if it exists, the user's choice is respected.
+    const merged = { 
+      ...defaults, 
+      ...(s || {}),
+      system: { ...defaults.system, ...(s?.system || {}) },
+      notifications: { ...defaults.notifications, ...(s?.notifications || {}) }
+    };
 
     merged.launchMode = normalizeLaunchMode(merged.launchMode);
     merged.startPage = normalizeStartPage(merged.startPage);
@@ -114,7 +143,21 @@ function writeSettings(next) {
 
   // ✅ merge defaults + existing-on-disk + next (prevents wiping)
   const existing = readRawSettingsFile() || {};
-  const merged = { ...defaultSettings(), ...(existing || {}), ...(next || {}) };
+  const defaults = defaultSettings();
+
+  const merged = { 
+    ...defaults, 
+    ...(existing || {}), 
+    ...(next || {}) 
+  };
+
+  // Ensure deep merge for nested objects if 'next' provided partials
+  if (next?.system) {
+    merged.system = { ...defaults.system, ...(existing?.system || {}), ...next.system };
+  }
+  if (next?.notifications) {
+    merged.notifications = { ...defaults.notifications, ...(existing?.notifications || {}), ...next.notifications };
+  }
 
   merged.launchMode = normalizeLaunchMode(merged.launchMode);
   merged.startPage = normalizeStartPage(merged.startPage);
@@ -146,7 +189,6 @@ function setStartPage(page) {
   return writeSettings(s);
 }
 
-// ✅ NEW
 function setGridColumns(cols) {
   const s = readSettings();
   s.gridColumns = normalizeGridColumns(cols);
@@ -159,6 +201,6 @@ module.exports = {
   setInstallRoot,
   setLaunchMode,
   setStartPage,
-  setGridColumns, // ✅ export
+  setGridColumns,
   getUserDataDir
 };

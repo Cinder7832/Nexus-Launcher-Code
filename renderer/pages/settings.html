@@ -1,6 +1,6 @@
 <div class="simpleTop">
   <div class="title">Settings</div>
-  <div class="muted">Choose where games are installed.</div>
+  <div class="muted">App preferences and configuration.</div>
 </div>
 
 <div class="panel">
@@ -11,5 +11,79 @@
   </div>
   <div class="muted" style="margin-top:10px;">
     New installs will go to this folder.
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<div class="panel">
+  <div class="panelTitle">System</div>
+  
+  <label class="settingRow">
+    <span>Start on Windows startup</span>
+    <input type="checkbox" id="sysStartAtLogin" />
+  </label>
+
+  <label class="settingRow">
+    <span>Start minimized</span>
+    <input type="checkbox" id="sysStartMinimized" />
+  </label>
+
+  <label class="settingRow">
+    <span>Close to tray instead of quitting</span>
+    <input type="checkbox" id="sysCloseToTray" />
+  </label>
+</div>
+
+<div class="divider"></div>
+
+<div class="panel">
+  <div class="panelTitle">Notifications</div>
+  
+  <label class="settingRow">
+    <span>Notify on Launcher Updates</span>
+    <input type="checkbox" id="notifLauncherUpdate" />
+  </label>
+
+  <label class="settingRow">
+    <span>Notify on Game Updates</span>
+    <input type="checkbox" id="notifGameUpdate" />
+  </label>
+
+  <label class="settingRow">
+    <span>Notify on New Game Releases</span>
+    <input type="checkbox" id="notifNewRelease" />
+  </label>
+</div>
+
+<div class="divider"></div>
+
+<div class="panel">
+  <div class="panelTitle">Grid Layout</div>
+  <div class="gridSettings">
+    <div class="muted" style="margin-bottom:12px;">Columns in Store & Library:</div>
+    <div class="btnGroup">
+      <button class="colBtn" data-cols="3">3</button>
+      <button class="colBtn" data-cols="4">4</button>
+      <button class="colBtn" data-cols="5">5</button>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<div class="panel">
+  <div class="panelTitle">About</div>
+  <div class="panelRow" style="justify-content:space-between; align-items:flex-start;">
+    <div>
+      <div style="font-weight:700;">Nexus Launcher</div>
+      <div class="muted" id="settingsVersion">v0.0.0</div>
+      <div id="settingsUpdateStatus" style="margin-top:8px; font-size:13px; color:#888;">Checking updates...</div>
+    </div>
+    <div style="text-align:right;">
+       <button id="nxWebsiteBtn" class="btnSecondary" style="margin-bottom:8px;">Website</button>
+       <br/>
+       <button id="checkLauncherUpdateBtn" class="btnSecondary">Check Updates</button>
+    </div>
   </div>
 </div>

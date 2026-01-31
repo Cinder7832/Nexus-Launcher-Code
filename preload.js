@@ -33,7 +33,7 @@ contextBridge.exposeInMainWorld("api", {
   // changelog
   getChangelog: (gameId) => ipcRenderer.invoke("get-changelog", gameId),
 
-  // ✅ Auto-update per game (NEW)
+  // ✅ Auto-update per game
   getAutoUpdateMap: () => ipcRenderer.invoke("get-auto-update-map"),
   setAutoUpdateForGame: (gameId, enabled) =>
     ipcRenderer.invoke("set-auto-update-for-game", gameId, enabled),
@@ -50,6 +50,10 @@ contextBridge.exposeInMainWorld("api", {
   pickInstallRoot: () => ipcRenderer.invoke("pick-install-root"),
   setInstallRoot: (dir) => ipcRenderer.invoke("set-install-root", dir),
   setStartPage: (page) => ipcRenderer.invoke("set-start-page", page),
+
+  // ✅ NEW: System & Notification Settings
+  setSystemSettings: (s) => ipcRenderer.invoke("set-system-settings", s),
+  setNotificationSettings: (s) => ipcRenderer.invoke("set-notification-settings", s),
 
   // Grid
   setGridColumns: (cols) => ipcRenderer.invoke("set-grid-columns", cols),
