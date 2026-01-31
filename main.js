@@ -1373,14 +1373,33 @@ ipcMain.handle("install-launcher-update", async () => {
     if (!launcherInstallerPath || !fs.existsSync(launcherInstallerPath)) {
       return { ok: false, error: "No installer found." };
     }
+
     try {
-      const proc = spawn(launcherInstallerPath, [], { detached: true, stdio: "ignore", windowsHide: false });
+      const proc = spawn(launcherInstallerPath, [], {
+        detached: true,
+        stdio: "ignore",
+        windowsHide: false
+      });
       proc.unref();
       try { clearLauncherUpdateState(); } catch {}
     } catch (e) {
       return { ok: false, error: `Failed: ${e?.message || e}` };
     }
-    setTimeout(() => { try { app.quit(); } catch {} }, 250);
+
+    // ✅ IMPORTANT: allow quit (don’t minimize-to-tray)
+    isQuitting = true;
+
+    // ✅ Optional: remove tray icon immediately so user sees it’s closing
+    try { tray?.destroy(); tray = null; } catch {}
+
+    // Quit cleanly, then force-exit as a fallback
+    setTimeout(() => {
+      try { app.quit(); } catch {}
+      setTimeout(() => {
+        try { app.exit(0); } catch {}
+      }, 1500);
+    }, 250);
+
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e?.message || String(e) };
@@ -1760,6 +1779,10 @@ if (!gotTheLock) {
     // If it *was* --hidden, just do nothing (keeps tray-only behavior)
   });
 }
+
+app.on("before-quit", () => {
+  isQuitting = true; // allow real quit (don’t hide to tray)
+});
 
 // --------------------
 // App lifecycle
