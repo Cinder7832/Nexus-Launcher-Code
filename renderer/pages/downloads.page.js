@@ -806,11 +806,34 @@
       return false;
     });
 
-    const activeIds = new Set(active.map((d) => d.id));
-
-    if (empty) empty.style.display = active.length === 0 ? "block" : "none";
-
+    const activeByGame = new Map();
     for (const d of active) {
+      const gid = String(d.gameId || "");
+      if (!gid) continue;
+
+      const cur = activeByGame.get(gid);
+      if (!cur) {
+        activeByGame.set(gid, d);
+        continue;
+      }
+
+      const priority = (x) => (x.status === "downloading" || x.status === "paused" || x.status === "queued" ? 2 : 1);
+      const nextPri = priority(d);
+      const curPri = priority(cur);
+
+      if (nextPri > curPri) {
+        activeByGame.set(gid, d);
+      } else if (nextPri === curPri && Number(d.id) > Number(cur.id)) {
+        activeByGame.set(gid, d);
+      }
+    }
+
+    const dedupedActive = Array.from(activeByGame.values());
+    const activeIds = new Set(dedupedActive.map((d) => d.id));
+
+    if (empty) empty.style.display = dedupedActive.length === 0 ? "block" : "none";
+
+    for (const d of dedupedActive) {
       const n = ensureCard(wrap, d);
       updateCard(n, d);
     }

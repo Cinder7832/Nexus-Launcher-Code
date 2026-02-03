@@ -835,7 +835,7 @@ function isGameAutoUpdateEnabled(gameId) {
   return !!map[gid];
 }
 
-function hasActiveDownloadForGame(gameId) {
+function getActiveDownloadForGame(gameId) {
   const gid = String(gameId || "");
   const list = downloads.list ? downloads.list() : [];
   for (const d of list) {
@@ -843,9 +843,13 @@ function hasActiveDownloadForGame(gameId) {
     if (!n) continue;
     if (String(n.gameId) !== gid) continue;
 
-    if (n.status === "downloading" || n.status === "paused" || n.status === "queued") return true;
+    if (n.status === "downloading" || n.status === "paused" || n.status === "queued") return n;
   }
-  return false;
+  return null;
+}
+
+function hasActiveDownloadForGame(gameId) {
+  return !!getActiveDownloadForGame(gameId);
 }
 
 async function performUpdateFromMeta(meta, inst) {
@@ -1627,6 +1631,12 @@ ipcMain.handle("get-downloads", () => {
 });
 
 ipcMain.handle("queue-install", async (_, game) => {
+  const active = getActiveDownloadForGame(game?.id);
+  if (active) {
+    sendToRenderer("toast", { message: `${game?.name || "Game"} is already downloading.`, kind: "info" });
+    return String(active.id);
+  }
+
   const tmpZip = path.join(os.tmpdir(), `nexus_${game.id}.zip`);
   const installPath = installer.getDefaultInstallPath(game.name);
   const downloadId = downloads.start({ gameId: game.id, name: game.name, url: game.zipUrl, destPath: tmpZip });
@@ -1673,6 +1683,10 @@ ipcMain.handle("queue-update", async (_, gameId) => {
   const inst = installed?.[gameId];
   if (!inst) return { ok: false, error: "Not installed" };
   if (running.has(String(gameId))) return { ok: false, error: "Game running" };
+
+  const active = getActiveDownloadForGame(gameId);
+  if (active) return { ok: true, downloadId: String(active.id), alreadyActive: true };
+
   let remoteStore;
   try { remoteStore = await fetchRemoteStore(); lastRemoteStore = remoteStore; } catch { return { ok: false, error: "Network error" }; }
   const meta = (remoteStore.games || []).find((g) => String(g.id) === String(gameId));

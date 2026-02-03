@@ -319,7 +319,13 @@ function setUpdatesMapFromPayload(payload) {
 
 // ✅ refresh UI when install finishes
 try {
-  window.api?.onInstallFinished?.(() => requestRefreshCurrentPage(0));
+  window.api?.onInstallFinished?.((p) => {
+    const gid = String(p?.gameId ?? "");
+    if (gid && window.__updatesByGameId?.delete) {
+      window.__updatesByGameId.delete(gid);
+    }
+    requestRefreshCurrentPage(0);
+  });
   // Download progress events can fire many times per second.
   // Individual pages (Downloads/Details/Store) listen for these and update in-place.
   // Avoid re-rendering the whole current page here, which can cause hover/transition jitter.
