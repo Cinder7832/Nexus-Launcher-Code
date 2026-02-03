@@ -121,6 +121,19 @@
         justify-content:space-between;
         gap:14px;
       }
+      .nxLaunchRow[data-nx-launcherupd="1"]{
+        flex-wrap: wrap;
+        align-items: flex-start;
+      }
+      .nxLaunchRow[data-nx-launcherupd="1"] .nxSeg{
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        width: 100%;
+      }
+      .nxLaunchRow[data-nx-launcherupd="1"] .nxSegBtn{
+        flex: 1 1 auto;
+        justify-content: center;
+      }
       .nxLaunchLeft{
         display:flex;
         flex-direction:column;
