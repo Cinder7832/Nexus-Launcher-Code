@@ -70,6 +70,10 @@ function defaultSettings() {
     launchMode: "maximized", // store | library
     startPage: "store",      
     gridColumns: 4,
+    windowBounds: {
+      width: 1400,
+      height: 820
+    },
     
     // ✅ NEW: System Settings (All TRUE by default now)
     system: {

@@ -23,6 +23,8 @@ const { fetchRemoteStore, computeUpdates, fetchRemoteChangelog } = require("./ba
 let win;
 let tray = null;
 let isQuitting = false; // Flag to handle "Close to Tray" vs "Quit"
+let currentLaunchMode = "maximized";
+let windowBoundsSaveTimer = null;
 
 // Track running games to compute playtime
 const running = new Map(); // gameId -> { startTime, proc }
@@ -656,10 +658,33 @@ function createWindow() {
 
   const rawMode = String(s.launchMode || "windowed").toLowerCase();
   const startMode = rawMode === "fullscreen" ? "maximized" : rawMode;
+  currentLaunchMode = startMode;
+
+  const defaultWidth = 1400;
+  const defaultHeight = 820;
+  const minWindowWidth = 1400;
+  const minWindowHeight = 760;
+
+  let startWidth = defaultWidth;
+  let startHeight = defaultHeight;
+
+  if (startMode === "windowed") {
+    const savedBounds = s.windowBounds || {};
+    const savedWidth = Number(savedBounds.width);
+    const savedHeight = Number(savedBounds.height);
+    if (Number.isFinite(savedWidth) && savedWidth > 0) {
+      startWidth = Math.max(minWindowWidth, savedWidth);
+    }
+    if (Number.isFinite(savedHeight) && savedHeight > 0) {
+      startHeight = Math.max(minWindowHeight, savedHeight);
+    }
+  }
 
   win = new BrowserWindow({
-    width: 1400,
-    height: 820,
+    width: startWidth,
+    height: startHeight,
+    minWidth: minWindowWidth,
+    minHeight: minWindowHeight,
     show: false, // ✅ ALWAYS start hidden initially
     backgroundColor: "#0b0d12",
     autoHideMenuBar: true,
@@ -689,6 +714,24 @@ function createWindow() {
 
     win.show();
   });
+
+  const scheduleWindowBoundsSave = () => {
+    if (windowBoundsSaveTimer) clearTimeout(windowBoundsSaveTimer);
+    windowBoundsSaveTimer = setTimeout(() => {
+      if (!win || win.isDestroyed()) return;
+      if (currentLaunchMode !== "windowed") return;
+      if (win.isMaximized() || win.isMinimized()) return;
+
+      const bounds = win.getBounds();
+      const width = Number(bounds.width);
+      const height = Number(bounds.height);
+      if (!Number.isFinite(width) || !Number.isFinite(height)) return;
+
+      settings.writeSettings({ windowBounds: { width, height } });
+    }, 200);
+  };
+
+  win.on("resize", scheduleWindowBoundsSave);
 
   // ✅ Handle "Close to Tray"
   win.on('close', (event) => {
@@ -1440,6 +1483,7 @@ ipcMain.handle("set-launch-mode", async (_, mode) => {
   const safe = m === "maximized" ? "maximized" : "windowed";
   const cur = settings.readSettings();
   const next = settings.writeSettings({ ...cur, launchMode: safe });
+  currentLaunchMode = safe;
   if (win && !win.isDestroyed()) {
     try {
       if (safe === "maximized") win.maximize(); else win.unmaximize();
