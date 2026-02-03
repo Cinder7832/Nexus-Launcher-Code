@@ -250,6 +250,18 @@ const templates = {
 const pageEl = document.getElementById("page");
 let isSwitching = false;
 
+// ✅ remember scroll positions per page (for back navigation)
+window.__pageScrollTopByPage = window.__pageScrollTopByPage || Object.create(null);
+window.__restoreScrollForPage = window.__restoreScrollForPage || "";
+
+window.__rememberPageScroll = function (page) {
+  const el = document.getElementById("page");
+  if (!el) return;
+  const key = String(page || window.__currentPage || "");
+  if (!key) return;
+  window.__pageScrollTopByPage[key] = el.scrollTop || 0;
+};
+
 // ✅ queue last requested page so clicks never get “ignored”
 let __pendingPage = null;
 
@@ -446,6 +458,19 @@ window.loadPage = async function (page) {
   } catch (e) {
     console.error(e);
     showToast("Page failed to render (check console).", "error");
+  }
+
+  // ✅ restore scroll position when returning from details
+  if (window.__restoreScrollForPage && window.__restoreScrollForPage === page) {
+    const pos = window.__pageScrollTopByPage?.[page];
+    window.__restoreScrollForPage = "";
+    if (typeof pos === "number") {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (pageEl) pageEl.scrollTop = pos;
+        });
+      });
+    }
   }
 
     // Premium enter animation (keeps page hidden while swapping content)

@@ -668,6 +668,8 @@ async function applyGridFromSettings() {
 
         tile.addEventListener("click", (e) => {
           if (e.target.closest("button")) return;
+          window.__rememberPageScroll?.("store");
+          window.__restoreScrollForPage = "store";
           window.__selectedGame = game;
           window.__previousPage = "store";
           window.loadPage("details");
