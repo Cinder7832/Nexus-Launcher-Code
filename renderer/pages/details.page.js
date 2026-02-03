@@ -24,6 +24,19 @@
     setTimeout(grow, 0);
   }
 
+  function bindDetailsEscOnce() {
+    if (window.__nxDetailsEscBound) return;
+    window.__nxDetailsEscBound = true;
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      if (window.__currentPage !== "details") return;
+
+      const prev = window.__previousPage || "library";
+      window.loadPage(prev);
+    });
+  }
+
   function formatPlaytime(seconds) {
     const s = Math.max(0, Math.floor(Number(seconds || 0)));
     if (s < 60) return `${s}s`;
@@ -3599,6 +3612,7 @@ async function updateInstalledSizeUI(game) {
     ensurePrimaryActionButtonStyles();
     const root = document.getElementById("page");
     bindDetailsPhaseEventsOnce();
+    bindDetailsEscOnce();
     if (!root) return;
 
     const selectedId = window.__selectedGame?.id;
