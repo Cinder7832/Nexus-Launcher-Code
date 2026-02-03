@@ -1040,12 +1040,13 @@ try {
           color: rgba(255,255,255,.95);
           cursor: pointer;
           display: flex;
-          align-items: center;
+          align-items: flex-start;
           justify-content: space-between;
           gap: 12px;
+          text-align: left;
         }
         .nxAnnItemHead:hover{ background: rgba(255,255,255,.04); }
-        .nxAnnItemLeft{ min-width: 0; display:flex; flex-direction:column; gap:6px; }
+        .nxAnnItemLeft{ min-width: 0; display:flex; flex-direction:column; gap:6px; align-items:flex-start; }
         .nxAnnItemTitle{ font-weight: 950; font-size: 13.5px; overflow:hidden; text-overflow: ellipsis; white-space: nowrap; }
         .nxAnnItemMeta{ display:flex; align-items:center; gap: 8px; flex-wrap: wrap; }
         .nxAnnTag{
