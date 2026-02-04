@@ -43,6 +43,7 @@ let lastLauncherCheck = null;
 let launcherInstallerPath = null;
 let launcherDownloadedVersion = null;
 let launcherDownloadId = null;
+let lastLauncherNotifiedVersion = null;
 
 function launcherStateFilePath() {
   return path.join(app.getPath("userData"), "launcher_update_state.json");
@@ -60,6 +61,71 @@ function loadLauncherUpdateState() {
     if (v) launcherDownloadedVersion = normalizeVersion(v);
   } catch {
     // ignore
+  }
+}
+
+async function checkLauncherUpdateInternal() {
+  try {
+    const owner = String(LAUNCHER_UPDATE.owner || "").trim();
+    const repo = String(LAUNCHER_UPDATE.repo || "").trim();
+
+    if (!owner || !repo) return { ok: false, error: "Repo not configured" };
+
+    const current = normalizeVersion(app.getVersion());
+    const release = await fetchLatestLauncherRelease(owner, repo);
+
+    if (!release) return { ok: false, error: "No release found." };
+
+    const latestTag = String(release?.tag_name || release?.name || "");
+    const latest = normalizeVersion(latestTag);
+
+    if (!latest || !isPureSemverTag(latestTag)) return { ok: false, error: "Invalid version tag" };
+
+    const asset = pickReleaseAsset(release);
+    if (!asset?.url) return { ok: false, error: "No .exe/.msi asset found" };
+
+    const hasUpdate = compareSemver(latest, current) > 0;
+
+    lastLauncherCheck = {
+      current,
+      latest,
+      hasUpdate,
+      assetUrl: asset.url,
+      assetName: asset.name,
+      publishedAt: String(release?.published_at || ""),
+      releaseNotes: String(release?.body || "")
+    };
+
+    const s = settings.readSettings();
+    if (hasUpdate && s.notifications?.onLauncherUpdate) {
+      const normalizedLatest = normalizeVersion(latest);
+      if (lastLauncherNotifiedVersion !== normalizedLatest) {
+        lastLauncherNotifiedVersion = normalizedLatest;
+        sendNotification("Launcher Update", `A new version (v${latest}) is available.`);
+      }
+    }
+
+    try {
+      if (launcherDownloadedVersion && lastLauncherCheck?.latest) {
+        const want = normalizeVersion(lastLauncherCheck.latest);
+        if (normalizeVersion(launcherDownloadedVersion) !== want) {
+          launcherInstallerPath = null;
+          launcherDownloadedVersion = null;
+          saveLauncherUpdateState();
+        }
+      }
+    } catch {}
+
+    return {
+      ok: true,
+      current,
+      latest,
+      hasUpdate,
+      asset,
+      publishedAt: lastLauncherCheck.publishedAt
+    };
+  } catch (e) {
+    return { ok: false, error: e?.message || String(e) };
   }
 }
 
@@ -1301,65 +1367,7 @@ ipcMain.handle("get-launcher-update-state", () => {
 });
 
 ipcMain.handle("check-launcher-update", async (_evt, _opts) => {
-  try {
-    const owner = String(LAUNCHER_UPDATE.owner || "").trim();
-    const repo = String(LAUNCHER_UPDATE.repo || "").trim();
-
-    if (!owner || !repo) return { ok: false, error: "Repo not configured" };
-
-    const current = normalizeVersion(app.getVersion());
-    const release = await fetchLatestLauncherRelease(owner, repo);
-
-    if (!release) return { ok: false, error: "No release found." };
-
-    const latestTag = String(release?.tag_name || release?.name || "");
-    const latest = normalizeVersion(latestTag);
-
-    if (!latest || !isPureSemverTag(latestTag)) return { ok: false, error: "Invalid version tag" };
-
-    const asset = pickReleaseAsset(release);
-    if (!asset?.url) return { ok: false, error: "No .exe/.msi asset found" };
-
-    const hasUpdate = compareSemver(latest, current) > 0;
-
-    lastLauncherCheck = {
-      current,
-      latest,
-      hasUpdate,
-      assetUrl: asset.url,
-      assetName: asset.name,
-      publishedAt: String(release?.published_at || ""),
-      releaseNotes: String(release?.body || "")
-    };
-
-    // ✅ Notification for Launcher Update
-    const s = settings.readSettings();
-    if (hasUpdate && s.notifications?.onLauncherUpdate) {
-      sendNotification("Launcher Update", `A new version (v${latest}) is available.`);
-    }
-
-    try {
-      if (launcherDownloadedVersion && lastLauncherCheck?.latest) {
-        const want = normalizeVersion(lastLauncherCheck.latest);
-        if (normalizeVersion(launcherDownloadedVersion) !== want) {
-          launcherInstallerPath = null;
-          launcherDownloadedVersion = null;
-          saveLauncherUpdateState();
-        }
-      }
-    } catch {}
-
-    return {
-      ok: true,
-      current,
-      latest,
-      hasUpdate,
-      asset,
-      publishedAt: lastLauncherCheck.publishedAt
-    };
-  } catch (e) {
-    return { ok: false, error: e?.message || String(e) };
-  }
+  return await checkLauncherUpdateInternal();
 });
 
 ipcMain.handle("download-launcher-update", async () => {
@@ -1858,6 +1866,9 @@ app.whenReady().then(() => {
 
   setTimeout(() => refreshUpdates(), 600);
   setInterval(() => refreshUpdates(), 5 * 60 * 1000);
+
+  setTimeout(() => { checkLauncherUpdateInternal(); }, 2000);
+  setInterval(() => { checkLauncherUpdateInternal(); }, 30 * 60 * 1000);
 
   setTimeout(pushStoreIfChanged, 400);
   setInterval(() => pushStoreIfChanged(), 30 * 1000);
