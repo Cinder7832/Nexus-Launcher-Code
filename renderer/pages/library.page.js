@@ -475,6 +475,108 @@ async function applyGridFromSettings() {
   } catch {}
 }
 
+function getGameDevelopers(meta, inst) {
+  const d =
+    meta?.developers ??
+    meta?.developer ??
+    meta?.dev ??
+    meta?.studio ??
+    meta?.creator ??
+    inst?.developers ??
+    inst?.developer ??
+    inst?.dev ??
+    inst?.studio ??
+    inst?.creator ??
+    [];
+  const arr = Array.isArray(d) ? d : [d];
+  return arr.map((x) => String(x || "").trim()).filter(Boolean);
+}
+
+function normalizeSearchText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function splitSearchTerms(query) {
+  return normalizeSearchText(query)
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function isSubsequence(needle, hay) {
+  if (!needle) return true;
+  let i = 0;
+  for (const ch of hay) {
+    if (ch === needle[i]) i += 1;
+    if (i >= needle.length) return true;
+  }
+  return false;
+}
+
+function levenshtein(a, b) {
+  const s = String(a || "");
+  const t = String(b || "");
+  if (s === t) return 0;
+  if (!s) return t.length;
+  if (!t) return s.length;
+
+  const rows = s.length + 1;
+  const cols = t.length + 1;
+  const dp = Array.from({ length: rows }, () => new Array(cols).fill(0));
+
+  for (let i = 0; i < rows; i++) dp[i][0] = i;
+  for (let j = 0; j < cols; j++) dp[0][j] = j;
+
+  for (let i = 1; i < rows; i++) {
+    for (let j = 1; j < cols; j++) {
+      const cost = s[i - 1] === t[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost
+      );
+    }
+  }
+
+  return dp[rows - 1][cols - 1];
+}
+
+function fuzzyMatchTerm(term, target) {
+  if (!term) return true;
+  const normalized = normalizeSearchText(target);
+  if (!normalized) return false;
+
+  const compact = normalized.replace(/\s+/g, "");
+  if (compact.includes(term)) return true;
+  if (isSubsequence(term, compact)) return true;
+
+  const maxDistance = term.length <= 4 ? 1 : term.length <= 7 ? 2 : 3;
+  const tokens = normalized.split(/\s+/).filter(Boolean);
+  for (const token of tokens) {
+    if (Math.abs(token.length - term.length) > maxDistance) continue;
+    if (levenshtein(term, token) <= maxDistance) return true;
+  }
+
+  return false;
+}
+
+function matchesLibrarySearch(game, query) {
+  const terms = splitSearchTerms(query);
+  if (!terms.length) return true;
+
+  const name = String(game?.name || "");
+  const devs = (game?.developers || []).join(" ");
+
+  for (const term of terms) {
+    const hit = fuzzyMatchTerm(term, name) || fuzzyMatchTerm(term, devs);
+    if (!hit) return false;
+  }
+
+  return true;
+}
+
 // --------------------------
 // ✅ Premium search bar (Store + Library)
 // --------------------------
@@ -1324,7 +1426,8 @@ window.renderLibrary = async function () {
       image: meta.imageUrl || meta.image || meta.heroUrl || meta.hero || inst.image || "",
       playtimeSeconds: inst.playtimeSeconds || 0,
       lastPlayed: inst.lastPlayed || null,
-      update: upd
+      update: upd,
+      developers: getGameDevelopers(meta, inst)
     };
   });
 
@@ -1538,49 +1641,15 @@ tile.onclick = (e) => {
   }
 
   function applyFilterAndRender() {
-    const term = (window.__librarySearchTerm || "").trim().toLowerCase();
-
-    canReorderNow = !term;
-
-    if (allGames.length === 0) {
-      grid.innerHTML = "";
-      if (empty) empty.style.display = "block";
-      if (emptyTitle) emptyTitle.textContent = "No games installed";
-      if (emptySub) emptySub.textContent = "Install something from the Store first.";
-      return;
-    }
-
-    let filtered = term
-      ? allGames.filter((g) => (g.name || "").toLowerCase().includes(term))
-      : allGames;
-
-    filtered = sortLibraryGamesByOrder(filtered);
-
-    if (filtered.length === 0) {
-      grid.innerHTML = "";
-      if (empty) empty.style.display = "block";
-      if (emptyTitle) emptyTitle.textContent = "No matching games";
-      if (emptySub) emptySub.textContent = "Try a different search.";
-      return;
-    }
-
-    if (empty) empty.style.display = "none";
-    const showHint = canReorderNow && allGames.length > 0;
-    renderTiles(filtered, showHint);
-  }
-
-  function applyFilterAndRender() {
-  const term = String(window.__librarySearchTerm || "").trim().toLowerCase();
+  const term = String(window.__librarySearchTerm || "");
 
   // Optional UX: disable reorder while searching
-  canReorderNow = !term;
+  canReorderNow = !String(term || "").trim();
 
   let list = allGames;
 
-  if (term) {
-    list = allGames.filter((g) =>
-      String(g.name || "").toLowerCase().includes(term)
-    );
+  if (String(term || "").trim()) {
+    list = allGames.filter((g) => matchesLibrarySearch(g, term));
   }
 
   const hasInstalled = allGames.length > 0;

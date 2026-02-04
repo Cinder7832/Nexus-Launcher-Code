@@ -128,7 +128,7 @@ const templates = {
 
       <div class="searchWrap">
         <span class="searchIcon">🔎</span>
-        <input class="search" id="storeSearch" placeholder="Search games..." />
+        <input class="search" id="storeSearch" placeholder="Search games or developers..." />
       </div>
     </div>
 
@@ -150,7 +150,7 @@ const templates = {
             <path d="M21 21l-4.35-4.35"></path>
           </svg>
         </span>
-        <input class="search" id="librarySearch" placeholder="Search installed games..." />
+        <input class="search" id="librarySearch" placeholder="Search games or developers..." />
       </div>
 
       <button class="btnSecondary" id="checkUpdatesBtn" type="button">Check for updates</button>
