@@ -1100,12 +1100,14 @@ try {
           transform: translateY(-4px);
           transition: max-height .22s cubic-bezier(.2,.9,.2,1), opacity .18s ease, transform .22s cubic-bezier(.2,.9,.2,1);
           padding: 0 12px;
+          overflow-y: auto;
         }
         .nxAnnItem.open .nxAnnBody{
-          max-height: 420px;
+          max-height: 60vh;
           opacity: 1;
           transform: translateY(0);
           padding-bottom: 12px;
+          overflow-y: auto;
         }
         .nxAnnBody p{
           margin: 10px 0 0 0;
