@@ -447,6 +447,11 @@
           </div>
         </div>
       `;
+      // Make history item clickable to go to details page
+      row.addEventListener("click", () => {
+        window.showDetailsPage?.(it.gameId);
+      });
+      row.style.cursor = "pointer";
 
       listEl.appendChild(row);
     }

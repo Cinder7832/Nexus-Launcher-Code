@@ -247,6 +247,16 @@ const templates = {
 // ----------------------------
 // Navigation / page loading (opacity-only fade)
 // ----------------------------
+// Centralized navigation to details page
+window.showDetailsPage = function(gameId) {
+  if (!gameId) return;
+  window.__rememberPageScroll?.(window.__currentPage);
+  window.__restoreScrollForPage = window.__currentPage;
+  window.__previousPage = window.__currentPage;
+  window.__selectedGame = { id: gameId };
+  window.loadPage("details");
+};
+
 const pageEl = document.getElementById("page");
 let isSwitching = false;
 

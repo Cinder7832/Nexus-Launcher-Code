@@ -1569,11 +1569,7 @@ if (showHint) {
 
       const goDetails = (e) => {
         e && e.stopPropagation();
-        window.__rememberPageScroll?.("library");
-        window.__restoreScrollForPage = "library";
-        window.__previousPage = "library";
-        window.__selectedGame = { id: game.id };
-        window.loadPage("details");
+        window.showDetailsPage?.(game.id);
       };
 
       const playBtn = tile.querySelector('[data-act="play"]');
