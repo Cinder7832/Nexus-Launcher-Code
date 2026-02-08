@@ -1677,6 +1677,25 @@
       .filter((e) => e.version || e.title || e.text || e.date);
   }
 
+// Helper: convert bullet points to HTML lists (copied from Library)
+function changelogTextToHtml(raw) {
+  const lines = String(raw || "").split(/\r?\n/);
+  let html = "";
+  let inList = false;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("- ")) {
+      if (!inList) { html += "<ul>"; inList = true; }
+      html += `<li>${trimmed.slice(2)}</li>`;
+    } else {
+      if (inList) { html += "</ul>"; inList = false; }
+      if (trimmed) html += `<p>${trimmed}</p>`;
+    }
+  }
+  if (inList) html += "</ul>";
+  return html || "<p>No notes provided.</p>";
+}
+
   function openChangelogModal(gameName, entries) {
     ensureChangelogStyles();
 
@@ -1764,7 +1783,7 @@
       setTimeout(() => {
         head.textContent = mainTitle;
         meta.textContent = sub;
-        text.textContent = entry.text || "No notes provided.";
+        text.innerHTML = changelogTextToHtml(entry.text);
         requestAnimationFrame(() => text.classList.remove("isSwap"));
       }, 140);
     }

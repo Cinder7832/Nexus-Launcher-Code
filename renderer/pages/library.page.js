@@ -61,6 +61,15 @@ function ensureChangelogStyles() {
       animation: nxChFadeIn .18s ease forwards;
     }
 
+    /* Fix bullet list gap in changelog modal */
+    .nxChText ul {
+      padding-left: 18px;
+      margin-left: 0;
+    }
+    .nxChText li {
+      margin-left: 0;
+    }
+
     .nxChCard{
       width: min(980px, 94vw);
       height: min(620px, 84vh);
@@ -214,6 +223,25 @@ function normalizeChangelogEntries(data) {
     .filter((e) => e.version || e.title || e.text || e.date);
 }
 
+// Helper: convert bullet points to HTML lists
+function changelogTextToHtml(raw) {
+  const lines = String(raw || "").split(/\r?\n/);
+  let html = "";
+  let inList = false;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("- ")) {
+      if (!inList) { html += "<ul>"; inList = true; }
+      html += `<li>${trimmed.slice(2)}</li>`;
+    } else {
+      if (inList) { html += "</ul>"; inList = false; }
+      if (trimmed) html += `<p>${trimmed}</p>`;
+    }
+  }
+  if (inList) html += "</ul>";
+  return html || "<p>No notes provided.</p>";
+}
+
 function openChangelogModal(gameName, entries) {
   ensureChangelogStyles();
 
@@ -301,7 +329,7 @@ function openChangelogModal(gameName, entries) {
     setTimeout(() => {
       head.textContent = mainTitle;
       meta.textContent = sub;
-      text.textContent = entry.text || "No notes provided.";
+      text.innerHTML = changelogTextToHtml(entry.text);
       requestAnimationFrame(() => text.classList.remove("isSwap"));
     }, 140);
   }
