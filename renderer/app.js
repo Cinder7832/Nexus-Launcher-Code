@@ -1118,6 +1118,18 @@ try {
         }
         .nxAnnBody p:first-child{ margin-top: 0; }
 
+        .nxAnnList {
+          margin: 10px 0 0 0;
+          padding-left: 22px;
+        }
+        .nxAnnList li {
+          color: rgba(255,255,255,.88);
+          font-weight: 800;
+          font-size: 13px;
+          margin-bottom: 6px;
+          line-height: 1.45;
+        }
+
         .nxAnnEmpty{
           padding: 14px;
           border-radius: 16px;
@@ -1266,7 +1278,28 @@ try {
         const tag = a.tag ? `<span class="nxAnnTag">${esc(a.tag)}</span>` : "";
         const date = a.date ? `<span class="nxAnnDate">${esc(a.date)}</span>` : "";
         const paras = Array.isArray(a.body) ? a.body : [];
-        const bodyHtml = paras.map((p) => `<p>${esc(p)}</p>`).join("");
+        // Group bullet points and paragraphs
+        let bodyHtml = "";
+        let inList = false;
+        for (let i = 0; i < paras.length; i++) {
+          const p = String(paras[i] || "");
+          if (p.trim().startsWith("- ")) {
+            if (!inList) {
+              bodyHtml += "<ul class='nxAnnList'>";
+              inList = true;
+            }
+            bodyHtml += `<li>${esc(p.trim().slice(2))}</li>`;
+          } else {
+            if (inList) {
+              bodyHtml += "</ul>";
+              inList = false;
+            }
+            if (p.trim()) {
+              bodyHtml += `<p>${esc(p)}</p>`;
+            }
+          }
+        }
+        if (inList) bodyHtml += "</ul>";
         const open = idx === 0 ? "open" : "";
         return `
           <div class="nxAnnItem ${open}" data-id="${esc(a.id)}">
