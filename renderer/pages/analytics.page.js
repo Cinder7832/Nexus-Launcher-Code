@@ -362,7 +362,7 @@
       .nxListItem:hover{
         background: rgba(255,255,255,.06);
         border-color: rgba(255,255,255,.10);
-        transform: translateY(-1px);
+        /* No transform on hover */
       }
       .nxListItem:active{ transform: translateY(0px); }
 
@@ -482,7 +482,7 @@
       .nxGameRow:hover{
         background: rgba(255,255,255,.06);
         border-color: rgba(255,255,255,.10);
-        transform: translateY(-1px);
+        /* No transform on hover */
       }
       .nxGameName{
         min-width:0;
