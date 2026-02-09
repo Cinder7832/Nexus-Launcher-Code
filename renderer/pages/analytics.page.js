@@ -368,7 +368,7 @@
 
       .nxListItem.open{
         background: rgba(255,255,255,.06);
-        border-color: rgba(124,92,255,.22);
+        border-color: rgba(255,255,255,.10);
         box-shadow: 0 18px 40px rgba(0,0,0,.22);
       }
 
