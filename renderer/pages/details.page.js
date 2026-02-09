@@ -2033,72 +2033,82 @@ box-shadow: 0 14px 34px rgba(255,60,90,.10);
         stroke-linejoin: round;
         opacity: .95;
       }
-      .nxSelectMenu{
-        position:absolute;
+
+      .nxSelectMenu {
+        position: absolute;
         right: 0;
         top: calc(100% + 8px);
-        min-width: 170px;
+        min-width: 180px;
+        max-width: 260px;
+        padding: 8px;
         border-radius: 16px;
-        background: rgba(18,20,30,.96);
         border: 1px solid rgba(255,255,255,.10);
-        box-shadow: 0 22px 70px rgba(0,0,0,.55);
-        overflow:hidden;
-        padding: 6px;
-        z-index: 9999;
-        transform: translateY(6px);
+        background: rgba(20,22,32,0.82); /* more transparent */
+        box-shadow: 0 32px 80px rgba(0,0,0,.65); /* stronger shadow */
+        backdrop-filter: blur(18px); /* stronger blur */
+        -webkit-backdrop-filter: blur(18px);
         opacity: 0;
+        transform: translateY(-6px) scale(.98);
         pointer-events: none;
-        transition: opacity .14s ease, transform .14s ease;
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
+        transition: opacity .18s ease, transform .22s cubic-bezier(.2,.9,.2,1);
+        z-index: 10000;
       }
-      .nxSelect.open .nxSelectMenu{
-        transform: translateY(0);
+      .nxSelect.open .nxSelectMenu {
         opacity: 1;
+        transform: translateY(0) scale(1);
         pointer-events: auto;
       }
-      .nxSelectItem{
-        width:100%;
-        text-align:left;
-        border:none;
-        background: transparent;
-        color: rgba(255,255,255,.86);
-        font-weight: 900;
-        font-size: 12.8px;
+      .nxSelectItem {
+        width: 100%;
+        text-align: left;
         padding: 10px 10px;
         border-radius: 12px;
-        cursor:pointer;
-        display:flex;
-        align-items:center;
-        justify-content:space-between;
+        border: 1px solid transparent;
+        background: transparent;
+        color: rgba(255,255,255,.92);
+        font-weight: 900;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
         gap: 10px;
-        transition: background .14s ease, transform .12s ease;
+        transition: background .14s, color .14s, border-color .14s;
       }
-
-      /* ✅ FIX: do NOT raise "New" / "Top" on hover */
-      .nxSelectItem:hover{
-        background: rgba(255,255,255,.06);
-        transform: none;
+      .nxSelectItem:hover, .nxSelectItem:active {
+        background: rgba(255,255,255,0.06);
+        color: #fff;
+        border-color: rgba(255,255,255,0.12);
       }
-
-      .nxSelectItem:active{ transform: scale(.99); }
-      .nxSelectItem[aria-selected="true"]{
+      .nxSelectItem[aria-selected="true"] {
         background: rgba(124,92,255,.18);
         color: rgba(255,255,255,.95);
+        border-color: rgba(124,92,255,.26);
       }
-      .nxSelectCheck{
-        width: 16px; height: 16px;
+      .nxSelectCheck {
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
         opacity: 0;
-        transition: opacity .12s ease;
+        background: none;
+        border: none;
+        box-shadow: none;
+        transition: opacity .14s;
       }
-      .nxSelectItem[aria-selected="true"] .nxSelectCheck{ opacity: 1; }
-      .nxSelectCheck svg{
-        width: 16px; height: 16px;
-        stroke: rgba(255,255,255,.92);
-        fill:none;
-        stroke-width: 2.4;
+      .nxSelectItem[aria-selected="true"] .nxSelectCheck {
+        opacity: 1;
+      }
+      .nxSelectCheck svg {
+        width: 18px;
+        height: 18px;
+        stroke: #fff;
+        fill: none;
+        stroke-width: 2.5;
         stroke-linecap: round;
         stroke-linejoin: round;
+        display: block;
       }
 
       .nxComposer{

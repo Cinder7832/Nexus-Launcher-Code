@@ -178,6 +178,12 @@
         box-shadow: none;
         transition: opacity .14s;
       }
+      .nxMenuItem.active {
+        background: rgba(124,92,255,.18);
+        color: rgba(255,255,255,.95);
+        border-color: rgba(124,92,255,.26);
+        box-shadow: 0 14px 34px rgba(124,92,255,.12);
+      }
       .nxMenuItem.active .nxMenuCheck {
         opacity: 1;
       }
