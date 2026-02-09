@@ -157,35 +157,39 @@
         align-items:center;
         justify-content: space-between;
         gap: 10px;
-        transition: background .14s ease, border-color .14s ease, transform .14s ease;
+        transition: background .14s, color .14s, border-color .14s;
       }
-      .nxMenuItem:hover{
-        background: rgba(255,255,255,.06);
-        border-color: rgba(255,255,255,.10);
-        transform: translateY(-1px);
+      .nxMenuItem:hover, .nxMenuItem:active {
+        background: rgba(255,255,255,0.06);
+        color: #fff;
+        border-color: rgba(255,255,255,0.12);
       }
-      .nxMenuItem:active{ transform: translateY(0) scale(.99); }
 
       .nxMenuCheck{
-        width: 18px;
-        height: 18px;
-        border-radius: 6px;
-        border: 1px solid rgba(255,255,255,.12);
-        background: rgba(255,255,255,.06);
-        display:grid;
-        place-items:center;
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         flex: 0 0 auto;
         opacity: 0;
+        background: none;
+        border: none;
+        box-shadow: none;
+        transition: opacity .14s;
       }
-      .nxMenuItem.active .nxMenuCheck{ opacity: 1; }
+      .nxMenuItem.active .nxMenuCheck {
+        opacity: 1;
+      }
       .nxMenuCheck svg{
-        width: 12px;
-        height: 12px;
-        stroke: rgba(255,255,255,.9);
+        width: 18px;
+        height: 18px;
+        stroke: #fff;
         fill: none;
-        stroke-width: 2.6;
+        stroke-width: 2.5;
         stroke-linecap: round;
         stroke-linejoin: round;
+        display: block;
       }
 
       /* ---- Overview cards ---- */
