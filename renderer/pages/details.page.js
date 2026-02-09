@@ -1880,7 +1880,7 @@ function changelogTextToHtml(raw) {
         font-size: 12.5px;
         transition: transform .12s ease, background .16s ease, filter .16s ease;
       }
-      .nxMiniBtn:hover{ background: rgba(255,255,255,.12); transform: translateY(-1px); }
+      .nxMiniBtn:hover{ background: rgba(255,255,255,.12); }
       .nxMiniBtn:active{ transform: translateY(0) scale(.98); }
       .nxMiniBtn:disabled{ opacity:.6; cursor:default; transform:none; }
       .nxMiniBtn.danger{
@@ -2017,7 +2017,6 @@ box-shadow: 0 14px 34px rgba(255,60,90,.10);
       }
       .nxSelectBtn:hover{
         background: rgba(255,255,255,.12);
-        transform: translateY(-1px);
       }
       .nxSelectBtn:active{ transform: translateY(0) scale(.99); }
       .nxSelectBtn:focus-visible{

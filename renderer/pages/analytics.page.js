@@ -105,7 +105,6 @@
       .nxMenuBtn:hover{
         background: rgba(255,255,255,.09);
         border-color: rgba(255,255,255,.14);
-        transform: translateY(-1px);
       }
       .nxMenuBtn:active{ transform: translateY(0) scale(.98); }
       .nxMenuBtn svg{
