@@ -246,8 +246,19 @@
   background: rgba(255,255,255,.08);
   color:#fff;
   font-weight:800;
+  transition:
+    background .16s ease,
+    transform .14s ease,
+    filter .16s ease;
 }
 
+.btnSecondary:hover {
+  background: rgba(255,255,255,.12);
+  /* no transform on hover */
+}
+.btnSecondary:active {
+  /* no transform on active */
+}
 /* =========================
    DETAILS PAGE
    ========================= */
