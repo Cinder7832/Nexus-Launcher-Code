@@ -2847,9 +2847,19 @@ box-shadow: 0 14px 34px rgba(255,60,90,.10);
     const sortLabel = document.getElementById("nxCommentsSortLabel");
     const sortMenu = document.getElementById("nxCommentsSortMenu");
 
+
     let busy = false;
     let cached = [];
-    let sortMode = "new";
+    // --- Persist sort mode in localStorage
+    const SORT_KEY = "nx.comments.sort_mode";
+    function getSavedSortMode() {
+      const v = localStorage.getItem(SORT_KEY);
+      return v === "top" ? "top" : "new";
+    }
+    function saveSortMode(mode) {
+      localStorage.setItem(SORT_KEY, mode === "top" ? "top" : "new");
+    }
+    let sortMode = getSavedSortMode();
     const myId = String(user?.id || "");
     let loadedCommentIdSet = new Set();
 
@@ -2869,9 +2879,11 @@ box-shadow: 0 14px 34px rgba(255,60,90,.10);
     input?.addEventListener("input", updateHint);
     updateHint();
 
+
     // ✅ Modern dropdown behavior
     function setSortMode(next) {
       sortMode = next === "top" ? "top" : "new";
+      saveSortMode(sortMode);
       if (sortLabel) sortLabel.textContent = sortMode === "top" ? "Top" : "New";
 
       if (sortMenu) {
@@ -2957,8 +2969,9 @@ box-shadow: 0 14px 34px rgba(255,60,90,.10);
     document.addEventListener("mousedown", onDocDown);
     document.addEventListener("keydown", onDocKey);
 
-    // initialize UI
-    setSortMode("new");
+
+    // initialize UI with saved sort mode
+    setSortMode(sortMode);
 
     async function reload() {
       if (!navigator.onLine) return;
