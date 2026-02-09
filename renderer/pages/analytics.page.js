@@ -370,6 +370,8 @@
         background: rgba(255,255,255,.06);
         border-color: rgba(255,255,255,.10);
         box-shadow: 0 18px 40px rgba(0,0,0,.22);
+        border-bottom-left-radius: 0;
+        border-bottom-right-radius: 0;
       }
 
       .nxListLeft{
@@ -426,9 +428,10 @@
 
       /* ---- Dropdown (inline expand) ---- */
       .nxExpand{
-        border-radius: 18px;
+        border-radius: 0 0 18px 18px;
         background: rgba(255,255,255,.03);
         border: 1px solid rgba(255,255,255,.06);
+        border-top: none;
         overflow: hidden;
         max-height: 0;
         opacity: 0;
@@ -856,10 +859,6 @@
 
       expandEl.innerHTML = `
         <div class="nxExpandInner">
-          <div class="nxExpandTitle">
-            <div style="min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${dev.dev}</div>
-            <div class="nxExpandHint">${dev.count} game${dev.count === 1 ? "" : "s"}</div>
-          </div>
           <div class="nxGamesList">${rows}</div>
         </div>
       `;
@@ -943,6 +942,12 @@
           const expanded = item.classList.contains("open");
           item.setAttribute("aria-expanded", expanded ? "true" : "false");
           expand.setAttribute("aria-hidden", expanded ? "false" : "true");
+          // Add/remove .open on the wrap for styling
+          if (expanded) {
+            wrap.classList.add("open");
+          } else {
+            wrap.classList.remove("open");
+          }
         }
 
         item.addEventListener("click", onToggle);
