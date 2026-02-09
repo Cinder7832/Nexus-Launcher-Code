@@ -865,8 +865,20 @@
       `;
 
       // prevent clicking inside the dropdown from collapsing via bubbling
-      expandEl.querySelectorAll(".nxGameRow").forEach((row) => {
-        row.addEventListener("click", (e) => e.stopPropagation());
+      expandEl.querySelectorAll(".nxGameRow").forEach((row, idx) => {
+        row.addEventListener("click", (e) => {
+          e.stopPropagation();
+          // Find the game object by index in dev.games
+          const game = Array.isArray(dev.games) ? dev.games[idx] : null;
+          if (game && game.id) {
+            if (typeof window.showDetailsPage === "function") {
+              window.showDetailsPage(game.id);
+            } else if (typeof window.loadPage === "function") {
+              window.__selectedGame = { id: game.id };
+              window.loadPage("details");
+            }
+          }
+        });
       });
     }
 
