@@ -2043,7 +2043,7 @@ box-shadow: 0 14px 34px rgba(255,60,90,.10);
         padding: 8px;
         border-radius: 16px;
         border: 1px solid rgba(255,255,255,.10);
-        background: rgba(20,22,32,0.82); /* more transparent */
+        background: rgba(20,22,32,0.92); /* slightly more opaque */
         box-shadow: 0 32px 80px rgba(0,0,0,.65); /* stronger shadow */
         backdrop-filter: blur(18px); /* stronger blur */
         -webkit-backdrop-filter: blur(18px);

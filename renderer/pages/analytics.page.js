@@ -798,9 +798,16 @@
       });
     }
 
+
     let query = "";
     let sort = "count";
+    // Load Top N from localStorage if available
     let topN = 10;
+    const topNStorageKey = "nxAnalyticsTopN";
+    const storedTopN = localStorage.getItem(topNStorageKey);
+    if (storedTopN && !isNaN(Number(storedTopN))) {
+      topN = Number(storedTopN);
+    }
     let openDevKey = null;
 
     drawTopChart(topN);
@@ -1021,6 +1028,8 @@
       onSelect: (v) => {
         const n = Number(v || 10);
         topN = isFinite(n) ? n : 10;
+        // Save to localStorage
+        localStorage.setItem(topNStorageKey, String(topN));
         drawTopChart(topN);
       },
       initialValue: String(topN)
