@@ -720,50 +720,16 @@
             </div>
           </div>
         </div>
-
-        <div class="nxCard">
-          <div class="nxListHead">
-            <div style="min-width:0;">
-              <div class="nxCardTitle" style="justify-content:flex-start; gap:10px;">
-                <span>Developers</span>
-                <span class="nxPill">click to expand</span>
-              </div>
-              <div class="nxCardSub"></div>
-            </div>
-
-            <div class="nxRow" style="justify-content:flex-end; width:min(520px, 100%);">
-              <input class="nxInput" id="nxSearch" placeholder="Search developer..." />
-
-              <div class="nxMenuWrap" id="nxSortWrap">
-                <button class="nxMenuBtn" id="nxSortBtn" type="button" aria-haspopup="menu" aria-expanded="false">
-                  <span id="nxSortLabel">Most games</span>
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
-                </button>
-                <div class="nxMenuPanel" id="nxSortMenu" role="menu" aria-label="Sort menu">
-                  <button class="nxMenuItem active" type="button" data-value="count" role="menuitem">
-                    <span>Most games</span>
-                    <span class="nxMenuCheck" aria-hidden="true">
-                      <svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>
-                    </span>
-                  </button>
-                  <button class="nxMenuItem" type="button" data-value="az" role="menuitem">
-                    <span>A–Z</span>
-                    <span class="nxMenuCheck" aria-hidden="true">
-                      <svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>
-                    </span>
-                  </button>
-                </div>
-              </div>
-
-            </div>
-          </div>
-
-          <div class="nxList" id="nxDevList"></div>
-        </div>
       </div>
     `;
-
+    // Top developers chart logic only
     const topChartEl = document.getElementById("nxTopChart");
+    let topN = 10;
+    const topNStorageKey = "nxAnalyticsTopN";
+    const storedTopN = localStorage.getItem(topNStorageKey);
+    if (storedTopN && !isNaN(Number(storedTopN))) {
+      topN = Number(storedTopN);
+    }
 
     function drawTopChart(n) {
       const top = devList.slice(0, n);
@@ -800,178 +766,12 @@
       });
     }
 
-
-    let query = "";
-    let sort = "count";
-    // Load Top N from localStorage if available
-    let topN = 10;
-    const topNStorageKey = "nxAnalyticsTopN";
-    const storedTopN = localStorage.getItem(topNStorageKey);
-    if (storedTopN && !isNaN(Number(storedTopN))) {
-      topN = Number(storedTopN);
-    }
-    let openDevKey = null;
-
     drawTopChart(topN);
 
-    const listEl = document.getElementById("nxDevList");
-    const searchEl = document.getElementById("nxSearch");
-
-    function getList() {
-      let arr = devList.slice();
-
-      if (query) {
-        const q = query.toLowerCase();
-        arr = arr.filter((d) => d.dev.toLowerCase().includes(q));
-      }
-
-      if (sort === "az") {
-        arr.sort((a, b) => a.dev.localeCompare(b.dev));
-      } else {
-        arr.sort((a, b) => (b.count - a.count) || a.dev.localeCompare(b.dev));
-      }
-
-      return arr;
-    }
-
-    function closeAllExpands() {
-      listEl.querySelectorAll(".nxListItem.open").forEach((el) => el.classList.remove("open"));
-      listEl.querySelectorAll(".nxExpand.open").forEach((el) => el.classList.remove("open"));
-      openDevKey = null;
-    }
-
-    function fillExpand(expandEl, dev) {
-      if (!expandEl) return;
-
-      const games = Array.isArray(dev.games) ? dev.games : [];
-      const rows = games.length
-        ? games
-            .map(
-              (g) => `
-                <div class="nxGameRow" title="${String(g?.name || "")}">
-                  <div class="nxGameName">${String(g?.name || "Game")}</div>
-                  ${g?.version ? `<div class="nxGameVer">v${String(g.version)}</div>` : `<div class="nxGameVer" style="opacity:.35;">—</div>`}
-                </div>
-              `
-            )
-            .join("")
-        : `<div class="nxEmpty">No games found for this developer.</div>`;
-
-      expandEl.innerHTML = `
-        <div class="nxExpandInner">
-          <div class="nxGamesList">${rows}</div>
-        </div>
-      `;
-
-      // prevent clicking inside the dropdown from collapsing via bubbling
-      expandEl.querySelectorAll(".nxGameRow").forEach((row, idx) => {
-        row.addEventListener("click", (e) => {
-          e.stopPropagation();
-          // Find the game object by index in dev.games
-          const game = Array.isArray(dev.games) ? dev.games[idx] : null;
-          if (game && game.id) {
-            if (typeof window.showDetailsPage === "function") {
-              window.showDetailsPage(game.id);
-            } else if (typeof window.loadPage === "function") {
-              window.__selectedGame = { id: game.id };
-              window.loadPage("details");
-            }
-          }
-        });
-      });
-    }
-
-    function toggleExpand(devKey, wrapEl, itemEl, expandEl, dev) {
-      if (!wrapEl || !itemEl || !expandEl) return;
-
-      const isOpen = itemEl.classList.contains("open") && expandEl.classList.contains("open");
-
-      // close current open (if different)
-      if (openDevKey && openDevKey !== devKey) {
-        closeAllExpands();
-      }
-
-      if (isOpen) {
-        itemEl.classList.remove("open");
-        expandEl.classList.remove("open");
-        openDevKey = null;
-      } else {
-        fillExpand(expandEl, dev);
-        itemEl.classList.add("open");
-        expandEl.classList.add("open");
-        openDevKey = devKey;
-      }
-    }
-
-    function renderList() {
-      const arr = getList();
-      listEl.innerHTML = "";
-      closeAllExpands();
-
-      if (arr.length === 0) {
-        listEl.innerHTML = `<div class="nxEmpty">No developers match your search.</div>`;
-        return;
-      }
-
-      for (const r of arr) {
-        const wrap = document.createElement("div");
-        wrap.className = "nxDevWrap";
-        const devKey = `dev:${r.dev}`;
-
-        wrap.innerHTML = `
-          <div class="nxListItem" role="button" tabindex="0" aria-expanded="false">
-            <div class="nxListLeft">
-              <div class="nxListName" title="${r.dev}">${r.dev}</div>
-              <div class="nxListSub">${r.count} game${r.count === 1 ? "" : "s"}</div>
-            </div>
-            <div class="nxListRight">
-              <span class="nxBadge">${r.count}</span>
-              <span class="nxChevron" aria-hidden="true">
-                <svg viewBox="0 0 24 24"><path d="M10 7l7 5-7 5"></path></svg>
-              </span>
-            </div>
-          </div>
-          <div class="nxExpand" aria-hidden="true"></div>
-        `;
-
-        const item = wrap.querySelector(".nxListItem");
-        const expand = wrap.querySelector(".nxExpand");
-
-        function onToggle() {
-          toggleExpand(devKey, wrap, item, expand, r);
-          const expanded = item.classList.contains("open");
-          item.setAttribute("aria-expanded", expanded ? "true" : "false");
-          expand.setAttribute("aria-hidden", expanded ? "false" : "true");
-          // Add/remove .open on the wrap for styling
-          if (expanded) {
-            wrap.classList.add("open");
-          } else {
-            wrap.classList.remove("open");
-          }
-        }
-
-        item.addEventListener("click", onToggle);
-        item.addEventListener("keydown", (e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            onToggle();
-          }
-          if (e.key === "Escape") {
-            e.preventDefault();
-            closeAllExpands();
-          }
-        });
-
-        listEl.appendChild(wrap);
-      }
-    }
-
-    renderList();
-
-    searchEl.addEventListener("input", () => {
-      query = String(searchEl.value || "").trim();
-      renderList();
-    });
+    const topNBtn = document.getElementById("nxTopNBtn");
+    const topNMenu = document.getElementById("nxTopNMenu");
+    const topNLabel = document.getElementById("nxTopNLabel");
+    const topNItems = Array.from(topNMenu.querySelectorAll(".nxMenuItem"));
 
     function setupMenu({ btn, panel, labelEl, items, getLabelForValue, onSelect, initialValue }) {
       let open = false;
@@ -1030,11 +830,6 @@
       return { setActive, closeMenu };
     }
 
-    const topNBtn = document.getElementById("nxTopNBtn");
-    const topNMenu = document.getElementById("nxTopNMenu");
-    const topNLabel = document.getElementById("nxTopNLabel");
-    const topNItems = Array.from(topNMenu.querySelectorAll(".nxMenuItem"));
-
     setupMenu({
       btn: topNBtn,
       panel: topNMenu,
@@ -1049,29 +844,6 @@
         drawTopChart(topN);
       },
       initialValue: String(topN)
-    });
-
-    const sortBtn = document.getElementById("nxSortBtn");
-    const sortMenu = document.getElementById("nxSortMenu");
-    const sortLabel = document.getElementById("nxSortLabel");
-    const sortItems = Array.from(sortMenu.querySelectorAll(".nxMenuItem"));
-
-    setupMenu({
-      btn: sortBtn,
-      panel: sortMenu,
-      labelEl: sortLabel,
-      items: sortItems,
-      getLabelForValue: (v) => (String(v) === "az" ? "A–Z" : "Most games"),
-      onSelect: (v) => {
-        sort = String(v || "count");
-        renderList();
-      },
-      initialValue: sort
-    });
-
-    // Close any open dropdown when pressing ESC anywhere
-    window.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") closeAllExpands();
     });
 
     animateCharts();
