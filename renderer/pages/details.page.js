@@ -1835,6 +1835,13 @@ function changelogTextToHtml(raw) {
     const s = document.createElement("style");
     s.id = COMMENTS_STYLE_ID;
     s.textContent = `
+      /* Chevron animation for sort dropdown */
+      .nxSelectBtn.open svg {
+        transform: rotate(180deg);
+      }
+      .nxSelectBtn svg {
+        transition: transform .18s ease;
+      }
       .nxCommentsWrap{ margin-top: 20px; }
       .nxCommentsCard{
         border-radius: 22px;
@@ -2908,6 +2915,7 @@ box-shadow: 0 14px 34px rgba(255,60,90,.10);
     function openSortMenu() {
       if (!sortWrap || !sortBtn) return;
       sortWrap.classList.add("open");
+      sortBtn.classList.add("open");
       sortBtn.setAttribute("aria-expanded", "true");
       // focus selected item for keyboard
       const sel = sortMenu?.querySelector(`[data-val="${sortMode}"]`);
@@ -2917,6 +2925,7 @@ box-shadow: 0 14px 34px rgba(255,60,90,.10);
     function closeSortMenu() {
       if (!sortWrap || !sortBtn) return;
       sortWrap.classList.remove("open");
+      sortBtn.classList.remove("open");
       sortBtn.setAttribute("aria-expanded", "false");
     }
 
