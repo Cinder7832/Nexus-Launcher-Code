@@ -3633,6 +3633,76 @@ function ensurePrimaryActionButtonStyles() {
   document.head.appendChild(s);
 }
 
+  // -------------------------------------------------
+  // ✅ Controller Indicator Logic & Styles
+  // -------------------------------------------------
+  const CONTROLLER_STYLE_ID = "nxControllerStyle";
+  function ensureControllerStyles() {
+    if (document.getElementById(CONTROLLER_STYLE_ID)) return;
+    const s = document.createElement("style");
+    s.id = CONTROLLER_STYLE_ID;
+    s.textContent = `
+      .detailsControllerIndicator {
+        position: absolute;
+        bottom: 16px;
+        right: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        background: rgba(30, 32, 40, 0.65);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 12px;
+        color: rgba(255, 255, 255, 0.95);
+        font-weight: 700;
+        font-size: 12.5px;
+        letter-spacing: 0.2px;
+        z-index: 10;
+        transition: opacity 0.2s ease, transform 0.2s ease;
+      }
+      .detailsControllerIndicator svg {
+        width: 18px;
+        height: 18px;
+        fill: currentColor;
+      }
+      .detailsControllerIndicator.hidden {
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(5px);
+      }
+    `;
+    document.head.appendChild(s);
+  }
+
+  function getControllerStatus() {
+     const gps = navigator.getGamepads ? navigator.getGamepads() : [];
+     for (const gp of gps) {
+       if (gp && gp.connected) return true;
+     }
+     return false;
+  }
+
+  function updateControllerIndicator() {
+    const el = document.getElementById("detailsControllerIndicator");
+    if (!el) return;
+    const connected = getControllerStatus();
+    if (connected) {
+      el.classList.remove("hidden");
+    } else {
+      el.classList.add("hidden");
+    }
+  }
+
+  function bindControllerEventsOnce() {
+    if (window.__nxControllerEventsBound) return;
+    window.__nxControllerEventsBound = true;
+
+    window.addEventListener("gamepadconnected", updateControllerIndicator);
+    window.addEventListener("gamepaddisconnected", updateControllerIndicator);
+  }
+
 
 async function updateInstalledSizeUI(game) {
   const el = document.getElementById("detailsInstalledSizeValue");
@@ -3660,6 +3730,8 @@ async function updateInstalledSizeUI(game) {
   window.renderDetails = async function () {
     ensureDangerActionButtonStyles();
     ensurePrimaryActionButtonStyles();
+    ensureControllerStyles();
+    bindControllerEventsOnce();
     const root = document.getElementById("page");
     bindDetailsPhaseEventsOnce();
     bindDetailsEscOnce();
@@ -3826,6 +3898,9 @@ async function updateInstalledSizeUI(game) {
 
       await updateDownloadSizeUI(game);
       await updateInstalledSizeUI(game);
+      
+      // Always update controller status to ensure it's correct
+      updateControllerIndicator();
       return;
     }
 
@@ -3876,6 +3951,11 @@ async function updateInstalledSizeUI(game) {
                 : ""
             }
           </div>
+        </div>
+        
+        <div id="detailsControllerIndicator" class="detailsControllerIndicator hidden">
+           ${iconController()}
+           <span>Controller Connected</span>
         </div>
       </div>
 
@@ -3977,6 +4057,7 @@ async function updateInstalledSizeUI(game) {
     // ✅ Update download size without flicker (cached + text-only update)
     await updateDownloadSizeUI(game);
     await updateInstalledSizeUI(game);
+    updateControllerIndicator();
 
     const imgWrap = document.getElementById("detailsImages");
     if (imgWrap) {
