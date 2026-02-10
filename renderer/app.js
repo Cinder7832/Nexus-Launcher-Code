@@ -1129,15 +1129,17 @@ try {
         .nxAnnBody p:first-child{ margin-top: 0; }
 
         .nxAnnList {
-          margin: 10px 0 0 0;
-          padding-left: 22px;
+          padding-left: 18px;
+          margin-left: 0;
+          margin-top: 10px;
         }
         .nxAnnList li {
-          color: rgba(255,255,255,.88);
-          font-weight: 800;
-          font-size: 13px;
+          margin-left: 0;
+          font-size: 13.5px;
+          font-weight: 700;
+          color: rgba(255,255,255,.76);
+          line-height: 1.55;
           margin-bottom: 6px;
-          line-height: 1.45;
         }
 
         .nxAnnEmpty{
