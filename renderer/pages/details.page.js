@@ -476,7 +476,7 @@
       if (cmp > 0) {
         toast(`Update available: ${game?.name || "Game"} (${fromV} → ${toV})`, "success");
       } else {
-        toast(`✓ ${game?.name || "Game"} is up to date. (${fromV || toV || "—"})`, "success");
+        toast(`✓ ${game?.name || "Game"} is up to date (${fromV || toV || "—"})`, "success");
       }
     } catch (e) {
       console.error(e);
@@ -3644,8 +3644,8 @@ function ensurePrimaryActionButtonStyles() {
     s.textContent = `
       .detailsControllerIndicator {
         position: absolute;
-        bottom: 16px;
-        right: 16px;
+        bottom: 13px;
+        right: 13px;
         display: flex;
         align-items: center;
         gap: 8px;
