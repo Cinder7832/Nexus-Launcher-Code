@@ -1547,7 +1547,7 @@ ipcMain.handle("set-grid-columns", async (_, cols) => {
   const safe = n === 4 ? 4 : n === 5 ? 5 : 3;
   const cur = settings.readSettings();
   const s = settings.writeSettings({ ...cur, gridColumns: safe });
-  sendToRenderer("toast", { message: `Grid set to ${safe} columns.`, kind: "success" });
+  sendToRenderer("toast", { message: `Grid set to ${safe} columns`, kind: "success" });
   return s;
 });
 
