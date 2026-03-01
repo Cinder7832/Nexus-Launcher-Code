@@ -1,5 +1,5 @@
 // main.js
-const { app, BrowserWindow, ipcMain, dialog, Menu, net, powerMonitor, shell, Tray, Notification, nativeImage } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, Menu, net, powerMonitor, shell, session, Tray, Notification, nativeImage } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
@@ -765,6 +765,40 @@ function createWindow() {
   });
 
   Menu.setApplicationMenu(null);
+
+  // ✅ Fix YouTube embed errors in Electron (file:// origin blocked)
+  // 1) Override Origin + Referer on outgoing requests so YouTube accepts them.
+  // 2) Strip X-Frame-Options / frame-ancestors from responses so the iframe loads.
+  try {
+    const ytFilter = { urls: ["https://*.youtube.com/*", "https://*.youtube-nocookie.com/*", "https://*.googlevideo.com/*"] };
+
+    session.defaultSession.webRequest.onBeforeSendHeaders(ytFilter, (details, callback) => {
+      details.requestHeaders["Origin"] = "https://www.youtube.com";
+      details.requestHeaders["Referer"] = "https://www.youtube.com/";
+      callback({ requestHeaders: details.requestHeaders });
+    });
+
+    session.defaultSession.webRequest.onHeadersReceived(ytFilter, (details, callback) => {
+      const headers = details.responseHeaders || {};
+      // Remove headers that block iframe embedding
+      for (const key of Object.keys(headers)) {
+        const lower = key.toLowerCase();
+        if (lower === "x-frame-options") delete headers[key];
+        if (lower === "content-security-policy") {
+          // Strip frame-ancestors directive but keep the rest
+          const vals = headers[key];
+          if (Array.isArray(vals)) {
+            headers[key] = vals.map(v => v.replace(/frame-ancestors\s+[^;]+(;|$)/gi, "").trim()).filter(Boolean);
+            if (!headers[key].length) delete headers[key];
+          }
+        }
+      }
+      callback({ responseHeaders: headers });
+    });
+  } catch (e) {
+    console.warn("Failed to set YouTube header overrides:", e);
+  }
+
   win.loadFile(path.join(__dirname, "renderer/index.html"));
 
   win.once("ready-to-show", () => {
@@ -1146,6 +1180,27 @@ async function pushStoreIfChanged() {
     // ignore
   }
 }
+
+// --------------------
+// ✅ YouTube video in child BrowserWindow (avoids embed/origin issues)
+// --------------------
+ipcMain.handle("open-youtube-video", (_evt, youtubeId, title) => {
+  if (!youtubeId || !win || win.isDestroyed()) return;
+  const videoWin = new BrowserWindow({
+    parent: win,
+    width: 960,
+    height: 580,
+    title: String(title || "Video"),
+    backgroundColor: "#000000",
+    autoHideMenuBar: true,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+  videoWin.setMenuBarVisibility(false);
+  videoWin.loadURL(`https://www.youtube.com/embed/${encodeURIComponent(youtubeId)}?autoplay=1&rel=0`);
+});
 
 // --------------------
 // ✅ Disk / size IPC

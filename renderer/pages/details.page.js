@@ -1664,12 +1664,13 @@
         padding-top: 56.25%;
         background: #000;
       }
-      .nxVidStage iframe{
+      .nxVidStage video{
         position: absolute;
         inset: 0;
         width: 100%;
         height: 100%;
         border: none;
+        outline: none;
       }
 
       .nxVideoThumb{
@@ -1726,15 +1727,25 @@
         fill: rgba(0,0,0,.85);
         margin-left: 2px;
       }
+
+      .nxVideoThumbPreview{
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        pointer-events: none;
+        border-radius: 22px;
+      }
     `;
     document.head.appendChild(s);
   }
 
-  function openVideoLightbox(youtubeId, title) {
+  function openVideoLightbox(videoUrl, title) {
     ensureVideoLightboxStyles();
     ensureLightboxStyles();
 
-    if (!youtubeId) return;
+    if (!videoUrl) return;
     let closing = false;
 
     const overlay = document.createElement("div");
@@ -1761,11 +1772,16 @@
     const stage = document.createElement("div");
     stage.className = "nxVidStage";
 
-    const iframe = document.createElement("iframe");
-    iframe.src = `https://www.youtube.com/embed/${youtubeId}?autoplay=1&rel=0`;
-    iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
-    iframe.allowFullscreen = true;
-    stage.appendChild(iframe);
+    const video = document.createElement("video");
+    video.src = videoUrl;
+    video.autoplay = true;
+    video.controls = true;
+    video.playsInline = true;
+    video.style.position = "absolute";
+    video.style.inset = "0";
+    video.style.width = "100%";
+    video.style.height = "100%";
+    stage.appendChild(video);
 
     card.appendChild(top);
     card.appendChild(stage);
@@ -4564,19 +4580,19 @@ async function updateInstalledSizeUI(game) {
             (game.videos.length || game.images.length)
               ? `<div class="shots" id="detailsMedia">
                    ${game.videos
-                     .map((url, i) => {
-                       const vid = extractYouTubeId(url);
-                       if (!vid) return '';
-                       const thumb = getYouTubeThumbnail(vid);
-                       return `<div class="shot nxVideoThumb" role="button" tabindex="0" data-video-idx="${i}" data-yt-id="${vid}" style="background-image:url('${thumb}')">
-                         <div class="nxVideoPlayOverlay">
-                           <div class="nxVideoPlayIcon">
-                             <svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="6,3 20,12 6,21"></polygon></svg>
-                           </div>
-                         </div>
-                       </div>`;
-                     })
-                     .join("")}
+                      .map((url, i) => {
+                        const src = toImg(url);
+                        if (!src) return '';
+                        return `<div class="shot nxVideoThumb" role="button" tabindex="0" data-video-idx="${i}" data-video-url="${src}">
+                          <video class="nxVideoThumbPreview" src="${src}" muted preload="metadata"></video>
+                          <div class="nxVideoPlayOverlay">
+                            <div class="nxVideoPlayIcon">
+                              <svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="6,3 20,12 6,21"></polygon></svg>
+                            </div>
+                          </div>
+                        </div>`;
+                      })
+                      .join("")}
                    ${game.images
                      .map((s, i) => {
                        const u = toImg(s);
@@ -4677,8 +4693,8 @@ async function updateInstalledSizeUI(game) {
       mediaWrap.addEventListener("click", (e) => {
         const vidEl = e.target.closest("[data-video-idx]");
         if (vidEl) {
-          const ytId = String(vidEl.dataset.ytId || "");
-          if (ytId) openVideoLightbox(ytId, game.name);
+          const videoUrl = String(vidEl.dataset.videoUrl || "");
+          if (videoUrl) openVideoLightbox(videoUrl, game.name);
           return;
         }
 
@@ -4695,8 +4711,8 @@ async function updateInstalledSizeUI(game) {
         const vidEl = e.target.closest("[data-video-idx]");
         if (vidEl) {
           e.preventDefault();
-          const ytId = String(vidEl.dataset.ytId || "");
-          if (ytId) openVideoLightbox(ytId, game.name);
+          const videoUrl = String(vidEl.dataset.videoUrl || "");
+          if (videoUrl) openVideoLightbox(videoUrl, game.name);
           return;
         }
 

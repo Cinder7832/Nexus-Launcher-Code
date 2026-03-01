@@ -903,7 +903,7 @@ async function applyGridFromSettings() {
         inset: 0;
         z-index: 1;
       }
-      .nxCollSpotlightVideoWrap iframe{
+      .nxCollSpotlightVideoWrap video{
         width: 100%;
         height: 100%;
         border: none;
@@ -1067,10 +1067,10 @@ async function applyGridFromSettings() {
       const desc = game?.description || "";
 
       const videos = getGameVideos(game);
-      const ytId = videos.length > 0 ? extractYTId(videos[0]) : null;
+      const videoUrl = videos.length > 0 ? toImg(videos[0]) : "";
 
       mount.innerHTML = `
-        <div class="nxCollSpotlight" data-game-id="${game.id}" ${ytId ? `data-yt-id="${ytId}"` : ""}>
+        <div class="nxCollSpotlight" data-game-id="${game.id}" ${videoUrl ? `data-video-url="${videoUrl}"` : ""}>
           <div class="nxCollSpotlightImg" style="background-image:url('${heroImg}')"></div>
           <div class="nxCollSpotlightOverlay"></div>
           <div class="nxCollSpotlightInfo">
@@ -1111,19 +1111,25 @@ async function applyGridFromSettings() {
         });
 
         // Video autoplay on hover
-        if (ytId) {
+        if (videoUrl) {
           let videoTimer = null;
           let videoWrap = null;
 
           spotEl.addEventListener("mouseenter", () => {
             videoTimer = setTimeout(() => {
-              const iframe = document.createElement("iframe");
-              iframe.src = `https://www.youtube.com/embed/${ytId}?autoplay=1&mute=1&controls=0&loop=1&playlist=${ytId}&modestbranding=1&showinfo=0&rel=0`;
-              iframe.allow = "autoplay; encrypted-media";
-              iframe.setAttribute("loading", "lazy");
+              const video = document.createElement("video");
+              video.src = videoUrl;
+              video.autoplay = true;
+              video.muted = true;
+              video.loop = true;
+              video.playsInline = true;
+              video.style.width = "100%";
+              video.style.height = "100%";
+              video.style.objectFit = "cover";
+              video.style.pointerEvents = "none";
               videoWrap = document.createElement("div");
               videoWrap.className = "nxCollSpotlightVideoWrap";
-              videoWrap.appendChild(iframe);
+              videoWrap.appendChild(video);
               spotEl.insertBefore(videoWrap, spotEl.querySelector(".nxCollSpotlightOverlay"));
             }, 1000);
           });
@@ -1191,8 +1197,8 @@ async function applyGridFromSettings() {
     const devText = devs.length > 0 ? devs.join(", ") : "";
 
     const videos = getGameVideos(game);
-    const ytId = videos.length > 0 ? extractYTId(videos[0]) : null;
-    if (ytId) tile.dataset.ytId = ytId;
+    const videoUrl = videos.length > 0 ? toImg(videos[0]) : "";
+    if (videoUrl) tile.dataset.videoUrl = videoUrl;
 
     const isInstalled = !!installed?.[game.id];
     const upd = window.__updatesByGameId?.get(String(game.id)) || null;
@@ -1205,7 +1211,7 @@ async function applyGridFromSettings() {
     tile.innerHTML = `
       <div class="tileImage" style="background-image:url('${toImg(cover)}')"></div>
       <div class="tileOverlay"></div>
-      ${ytId ? `<div class="nxCollCardPlayBadge"><svg viewBox="0 0 24 24"><polygon points="6,3 20,12 6,21"/></svg></div>` : ""}
+      ${videoUrl ? `<div class="nxCollCardPlayBadge"><svg viewBox="0 0 24 24"><polygon points="6,3 20,12 6,21"/></svg></div>` : ""}
       <div class="tileInfo">
         <div class="tileBadge">v${game.version || "0.0.0"}</div>
         <div class="tileName">${game.name || "Game"}</div>
@@ -1290,21 +1296,23 @@ async function applyGridFromSettings() {
     let hoverTimer = null;
     let currentVideoEl = null;
 
-    document.querySelectorAll(".nxCollScroller .gameTile[data-yt-id]").forEach((card) => {
-      const ytId = card.dataset.ytId;
-      if (!ytId) return;
+    document.querySelectorAll(".nxCollScroller .gameTile[data-video-url]").forEach((card) => {
+      const videoUrl = card.dataset.videoUrl;
+      if (!videoUrl) return;
 
       card.addEventListener("mouseenter", () => {
         hoverTimer = setTimeout(() => {
-          const iframe = document.createElement("iframe");
-          iframe.className = "nxCollCardVideoFrame";
-          iframe.src = `https://www.youtube.com/embed/${ytId}?autoplay=1&mute=1&controls=0&loop=1&playlist=${ytId}&modestbranding=1&showinfo=0&rel=0`;
-          iframe.allow = "autoplay; encrypted-media";
-          iframe.setAttribute("loading", "lazy");
+          const video = document.createElement("video");
+          video.className = "nxCollCardVideoFrame";
+          video.src = videoUrl;
+          video.autoplay = true;
+          video.muted = true;
+          video.loop = true;
+          video.playsInline = true;
 
           const wrapper = document.createElement("div");
           wrapper.className = "nxCollCardVideoWrap";
-          wrapper.appendChild(iframe);
+          wrapper.appendChild(video);
 
           card.appendChild(wrapper);
           currentVideoEl = wrapper;
