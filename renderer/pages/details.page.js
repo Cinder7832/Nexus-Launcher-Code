@@ -1,5 +1,55 @@
 // renderer/pages/details.page.js
 (function () {
+
+  // -------------------------------------------------
+  // ✅ Running game tracking for Details page
+  // -------------------------------------------------
+  function getRunningGameSet() {
+    if (!window.__nxRunningGameIds) window.__nxRunningGameIds = new Set();
+    return window.__nxRunningGameIds;
+  }
+
+  function isGameRunningDetails(gameId) {
+    return getRunningGameSet().has(String(gameId || ""));
+  }
+
+  window.updateDetailsRunningUI = function (gameId) {
+    const root = document.getElementById("page");
+    if (!root) return;
+
+    const cur = String(root.dataset?.nxDetailsGameId || "");
+    if (!cur) return;
+
+    const gid = String(gameId || cur);
+    if (gid !== cur) return;
+
+    const running = isGameRunningDetails(cur);
+
+    const primaryBtn = document.getElementById("detailsPrimaryBtn");
+    if (!primaryBtn) return;
+
+    // Only manage running state if the game is installed (not for Install button)
+    const statusText = String(document.getElementById("detailsInfoStatusValue")?.textContent || "")
+      .trim()
+      .toLowerCase();
+    const isInstalled = statusText === "installed";
+    if (!isInstalled) return;
+
+    // Don't override download/install phase states
+    const phase = getPhaseForGame(cur);
+    if (phase === "downloading" || phase === "installing") return;
+
+    if (running) {
+      primaryBtn.disabled = true;
+      primaryBtn.textContent = "Running";
+    } else {
+      primaryBtn.disabled = false;
+      primaryBtn.textContent = "Play Now";
+      // Refresh details to update playtime after game exits
+      try { window.renderDetails?.(); } catch {}
+    }
+  };
+
   function attachAutoGrowTextarea(el, minHeightPx) {
     if (!el || el.__nxAutoGrowBound) return;
     el.__nxAutoGrowBound = true;
@@ -290,9 +340,12 @@
         .toLowerCase();
       const isInstalled = statusText === "installed";
 
+      // Don't override "Running" state
+      if (isInstalled && isGameRunningDetails(cur)) return;
+
       if (!primaryBtn.dataset.nxDefaultText) {
         const t = String(primaryBtn.textContent || "").trim();
-        if (t !== "Downloading…" && t !== "Installing…") primaryBtn.dataset.nxDefaultText = t || (isInstalled ? "Play Now" : "Install");
+        if (t !== "Downloading…" && t !== "Installing…" && t !== "Running") primaryBtn.dataset.nxDefaultText = t || (isInstalled ? "Play Now" : "Install");
       }
       const defaultText = String(primaryBtn.dataset.nxDefaultText || (isInstalled ? "Play Now" : "Install"));
 
@@ -3805,6 +3858,14 @@ async function updateInstalledSizeUI(game) {
     bindDetailsEscOnce();
     if (!root) return;
 
+    // Fetch currently running games from main process
+    try {
+      const ids = await window.api.getRunningGames?.() || [];
+      const set = getRunningGameSet();
+      set.clear();
+      for (const id of ids) set.add(String(id));
+    } catch {}
+
     const selectedId = window.__selectedGame?.id;
     if (!selectedId) {
       root.innerHTML = `
@@ -3878,15 +3939,19 @@ async function updateInstalledSizeUI(game) {
       const statusEl = document.getElementById("detailsInfoStatusValue");
       if (statusEl) setTextIfChanged(statusEl, game.installed ? "Installed" : "Not installed");
 
-      
+
       // Primary button label + action
       const primaryBtn = document.getElementById("detailsPrimaryBtn");
       if (primaryBtn) {
         const phase = String(game.phase || getPhaseForGame(game.id) || "");
-        const defaultLabel = game.installed ? "Play Now" : "Install";
+        const gameRunning = isGameRunningDetails(game.id);
+        const defaultLabel = game.installed ? (gameRunning ? "Running" : "Play Now") : "Install";
         primaryBtn.dataset.nxDefaultText = defaultLabel;
 
-        if (!game.installed && (phase === "downloading" || phase === "installing")) {
+        if (game.installed && gameRunning) {
+          primaryBtn.disabled = true;
+          setTextIfChanged(primaryBtn, "Running");
+        } else if (!game.installed && (phase === "downloading" || phase === "installing")) {
           primaryBtn.disabled = true;
           setTextIfChanged(primaryBtn, phase === "installing" ? "Installing…" : "Downloading…");
         } else {
@@ -3896,8 +3961,11 @@ async function updateInstalledSizeUI(game) {
 
         primaryBtn.onclick = async () => {
           if (primaryBtn.disabled) return;
+          if (isGameRunningDetails(game.id)) return;
 
           if (game.installed) {
+            primaryBtn.disabled = true;
+            setTextIfChanged(primaryBtn, "Running");
             await window.api.launchGame(game.id);
             return;
           }
@@ -3982,11 +4050,13 @@ async function updateInstalledSizeUI(game) {
 
     const phase = String(game.phase || getPhaseForGame(game.id) || "");
 
+    const gameRunning = isGameRunningDetails(game.id);
+
     const primaryLabel = game.installed
-      ? "Play Now"
+      ? (gameRunning ? "Running" : "Play Now")
       : (phase === "installing" ? "Installing…" : (phase === "downloading" ? "Downloading…" : "Install"));
 
-    const primaryDisabled = !game.installed && (phase === "downloading" || phase === "installing");
+    const primaryDisabled = gameRunning || (!game.installed && (phase === "downloading" || phase === "installing"));
 
     const updateLabel = phase === "installing"
       ? "Installing…"
@@ -4161,16 +4231,25 @@ async function updateInstalledSizeUI(game) {
 
     const primaryBtn = document.getElementById("detailsPrimaryBtn");
     if (primaryBtn) {
-      const defaultLabel = game.installed ? "Play Now" : "Install";
+      const gameRunning = isGameRunningDetails(game.id);
+      const defaultLabel = game.installed ? (gameRunning ? "Running" : "Play Now") : "Install";
       primaryBtn.dataset.nxDefaultText = defaultLabel;
 
-      // Ensure label reflects any in-progress download/install
-      updateDetailsPhaseUI(game.id);
+      // Ensure label reflects any in-progress download/install or running state
+      if (game.installed && gameRunning) {
+        primaryBtn.disabled = true;
+        setTextIfChanged(primaryBtn, "Running");
+      } else {
+        updateDetailsPhaseUI(game.id);
+      }
 
       primaryBtn.onclick = async () => {
         if (primaryBtn.disabled) return;
+        if (isGameRunningDetails(game.id)) return;
 
         if (game.installed) {
+          primaryBtn.disabled = true;
+          setTextIfChanged(primaryBtn, "Running");
           await window.api.launchGame(game.id);
           return;
         }

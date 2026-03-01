@@ -7,6 +7,51 @@ function setTextIfChanged(el, txt) {
   if (el.textContent !== next) el.textContent = next;
 }
 
+// -------------------------------------------------
+// ✅ Running games tracking (shared with details page)
+// -------------------------------------------------
+function getRunningGameSet() {
+  if (!window.__nxRunningGameIds) window.__nxRunningGameIds = new Set();
+  return window.__nxRunningGameIds;
+}
+
+function isGameRunning(gameId) {
+  return getRunningGameSet().has(String(gameId || ""));
+}
+
+function updateLibraryRunningButtons() {
+  const grid = document.getElementById("libraryGrid");
+  if (!grid) return;
+  const tiles = grid.querySelectorAll(".gameTile[data-game-id]");
+  for (const tile of tiles) {
+    const gid = String(tile.dataset.gameId || "");
+    if (!gid) continue;
+    const playBtn = tile.querySelector('[data-act="play"]');
+    if (!playBtn) continue;
+    const running = isGameRunning(gid);
+    playBtn.disabled = running;
+    setTextIfChanged(playBtn, running ? "Running" : "Play");
+  }
+}
+
+function bindLibraryRunningEventsOnce() {
+  if (window.__nxLibRunningEventsBound) return;
+  window.__nxLibRunningEventsBound = true;
+
+  if (typeof window.api?.onGameRunningChanged === "function") {
+    window.api.onGameRunningChanged((data) => {
+      const gid = String(data?.gameId || "");
+      if (!gid) return;
+      const set = getRunningGameSet();
+      if (data?.running) set.add(gid);
+      else set.delete(gid);
+      updateLibraryRunningButtons();
+      // Also refresh details page play button if visible
+      try { window.updateDetailsRunningUI?.(gid); } catch {}
+    });
+  }
+}
+
 function formatPlaytime(seconds) {
   const s = Math.max(0, Math.floor(Number(seconds || 0)));
 
@@ -1608,7 +1653,16 @@ function attachLibraryReorder(gridEl, canReorder) {
 window.renderLibrary = async function () {
   ensureLibraryPlayButtonGlowStyles();
   ensureSearchBarStyles();
+  bindLibraryRunningEventsOnce();
   await applyGridFromSettings();
+
+  // Fetch currently running games from main process
+  try {
+    const ids = await window.api.getRunningGames?.() || [];
+    const set = getRunningGameSet();
+    set.clear();
+    for (const id of ids) set.add(String(id));
+  } catch {}
 
   const grid = document.getElementById("libraryGrid");
   const empty = document.getElementById("libraryEmpty");
@@ -1823,9 +1877,9 @@ if (showHint) {
             ${
               hasUpdate
                 ? `<button class="libBtnPrimary" data-act="update">Update</button>
-                   <button class="libBtnGhost" data-act="play">Play</button>
+                   <button class="libBtnGhost" data-act="play" ${isGameRunning(game.id) ? "disabled" : ""}>${isGameRunning(game.id) ? "Running" : "Play"}</button>
                    <button class="libBtnGhost" data-act="changelog">Changelog</button>`
-                : `<button class="libBtnPrimary" data-act="play">Play</button>
+                : `<button class="libBtnPrimary" data-act="play" ${isGameRunning(game.id) ? "disabled" : ""}>${isGameRunning(game.id) ? "Running" : "Play"}</button>
                    <button class="libBtnGhost" data-act="changelog">Changelog</button>`
             }
           </div>
@@ -1844,6 +1898,9 @@ if (showHint) {
       if (playBtn) {
         playBtn.onclick = async (e) => {
           e.stopPropagation();
+          if (isGameRunning(game.id)) return;
+          playBtn.disabled = true;
+          setTextIfChanged(playBtn, "Running");
           await window.api.launchGame(game.id);
         };
       }

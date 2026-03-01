@@ -1778,6 +1778,10 @@ ipcMain.handle("pause-download", async (_, downloadId) => { downloads.pause(down
 ipcMain.handle("resume-download", async (_, downloadId) => { await downloads.resume(downloadId); return true; });
 ipcMain.handle("cancel-download", async (_, downloadId) => { downloads.cancel(downloadId); return true; });
 
+ipcMain.handle("get-running-games", () => {
+  return Array.from(running.keys());
+});
+
 ipcMain.handle("launch-game", async (_, gameId) => {
   const installed = installer.readInstalled();
   const game = installed[gameId];
@@ -1794,9 +1798,11 @@ ipcMain.handle("launch-game", async (_, gameId) => {
     game.lastPlayed = new Date().toISOString();
     installed[gameId] = game;
     installer.saveInstalled(installed);
+    sendToRenderer("game-running-changed", { gameId: String(gameId), running: true });
     proc.on("exit", () => {
       const entry = running.get(String(gameId));
       running.delete(String(gameId));
+      sendToRenderer("game-running-changed", { gameId: String(gameId), running: false });
       const installedNow = installer.readInstalled();
       const g = installedNow[gameId];
       if (!g || !entry) return;
@@ -1805,7 +1811,7 @@ ipcMain.handle("launch-game", async (_, gameId) => {
       installedNow[gameId] = g;
       installer.saveInstalled(installedNow);
     });
-    proc.on("error", (err) => { running.delete(String(gameId)); sendToRenderer("toast", { message: `Launch failed: ${err.message}`, kind: "error" }); });
+    proc.on("error", (err) => { running.delete(String(gameId)); sendToRenderer("game-running-changed", { gameId: String(gameId), running: false }); sendToRenderer("toast", { message: `Launch failed: ${err.message}`, kind: "error" }); });
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err.message };

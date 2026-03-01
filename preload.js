@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld("api", {
 
   // Play + uninstall
   launchGame: (gameId) => ipcRenderer.invoke("launch-game", gameId),
+  getRunningGames: () => ipcRenderer.invoke("get-running-games"),
   uninstallGame: (gameId) => ipcRenderer.invoke("uninstall-game", gameId),
 
   // reset playtime
@@ -83,6 +84,7 @@ contextBridge.exposeInMainWorld("api", {
   onUpdatesChanged: (cb) => ipcRenderer.on("updates-changed", (_, u) => cb(u)),
   onStoreChanged: (cb) => ipcRenderer.on("store-changed", (_, p) => cb(p)),
   onNetStatus: (cb) => ipcRenderer.on("net-status", (_, p) => cb(p)),
+  onGameRunningChanged: (cb) => ipcRenderer.on("game-running-changed", (_, p) => cb(p)),
 
   // launcher update ready
   onLauncherUpdateReady: (cb) => ipcRenderer.on("launcher-update-ready", (_, p) => cb(p)),
