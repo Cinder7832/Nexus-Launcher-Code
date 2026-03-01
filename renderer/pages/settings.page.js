@@ -1094,7 +1094,8 @@
         websiteBtn: page.querySelector("#nxWebsiteBtn"),
         changelogBtn: page.querySelector("#nxLauncherChangelogBtn"),
         systemHost: page.querySelector("#nxSystemHost"),
-        notifHost: page.querySelector("#nxNotifHost")
+        notifHost: page.querySelector("#nxNotifHost"),
+        unlockAllBtn: page.querySelector("#nxUnlockAllGamesBtn")
       };
     }
 
@@ -1144,6 +1145,12 @@
         <div class="nxMiniKey">Installed games</div>
         <div class="nxMiniVal" id="nxInstalledGamesVal">—</div>
       </div>
+      <div style="margin-top:12px; display:flex; justify-content:flex-start;">
+        <div class="nxSeg" role="group" aria-label="Library locks">
+          <button class="nxSegBtn" id="nxUnlockAllGamesBtn" type="button">Unlock all games</button>
+        </div>
+      </div>
+      <div class="nxTinyNote">Remove position locks from every game in your Library</div>
     `;
 
     const websitePanel = document.createElement("div");
@@ -1194,7 +1201,8 @@
       websiteBtn: websitePanel.querySelector("#nxWebsiteBtn"),
       changelogBtn: changelogPanel.querySelector("#nxLauncherChangelogBtn"),
       systemHost: systemPanel.querySelector("#nxSystemHost"),
-      notifHost: notifPanel.querySelector("#nxNotifHost")
+      notifHost: notifPanel.querySelector("#nxNotifHost"),
+      unlockAllBtn: libraryPanel.querySelector("#nxUnlockAllGamesBtn")
     };
   }
 
@@ -1254,6 +1262,89 @@
     }
 
     await refreshInstalledCount(layout?.installedVal);
+
+    // ✅ Unlock all games button
+    const unlockAllBtn = layout?.unlockAllBtn || document.getElementById("nxUnlockAllGamesBtn");
+    if (unlockAllBtn) {
+      unlockAllBtn.onclick = () => {
+        const LIB_LOCKED_KEY = "nx.libraryLocked.v1";
+        let count = 0;
+        try {
+          const raw = localStorage.getItem(LIB_LOCKED_KEY);
+          const arr = JSON.parse(raw || "[]");
+          count = Array.isArray(arr) ? arr.length : 0;
+        } catch {}
+
+        if (!count) {
+          if (typeof window.showToast === "function") {
+            window.showToast("No games are currently locked.", "info");
+          }
+          return;
+        }
+
+        ensureModalStyles();
+
+        const overlay = document.createElement("div");
+        overlay.className = "nxModalOverlay";
+
+        overlay.innerHTML = `
+          <div class="nxModalCard" role="dialog" aria-modal="true">
+            <div class="nxModalTop">
+              <div style="flex:1;">
+                <div class="nxModalTitle">Unlock all games?</div>
+                <div class="nxModalMsg">
+                  This will remove position locks from <strong>${count}</strong> game${count > 1 ? "s" : ""} in your Library. They can be reordered freely again.
+                </div>
+              </div>
+            </div>
+
+            <div class="nxModalDivider"></div>
+
+            <div class="nxModalActions">
+              <button class="nxBtn" data-act="no" type="button">Cancel</button>
+              <button class="nxBtn nxBtnPrimary" data-act="yes" type="button">Unlock all</button>
+            </div>
+          </div>
+        `;
+
+        const card = overlay.querySelector(".nxModalCard");
+        const noBtn = overlay.querySelector('[data-act="no"]');
+        const yesBtn = overlay.querySelector('[data-act="yes"]');
+
+        function close() {
+          document.removeEventListener("keydown", onKey);
+          overlay.remove();
+        }
+
+        function onKey(e) {
+          if (e.key === "Escape") close();
+        }
+
+        overlay.addEventListener("click", (e) => {
+          if (!card.contains(e.target)) close();
+        });
+
+        noBtn?.addEventListener("click", close);
+
+        yesBtn?.addEventListener("click", () => {
+          try {
+            localStorage.setItem(LIB_LOCKED_KEY, "[]");
+            if (typeof window.showToast === "function") {
+              window.showToast(`Unlocked ${count} game${count > 1 ? "s" : ""}.`, "success");
+            }
+          } catch {
+            if (typeof window.showToast === "function") {
+              window.showToast("Failed to unlock games.", "error");
+            }
+          }
+          close();
+        });
+
+        document.addEventListener("keydown", onKey);
+        document.body.appendChild(overlay);
+        noBtn?.focus();
+      };
+    }
 
     try { wireWebsiteButton(layout?.websiteBtn || document.getElementById("nxWebsiteBtn")); } catch {}
     try { wireChangelogButton(layout?.changelogBtn || document.getElementById("nxLauncherChangelogBtn")); } catch {}

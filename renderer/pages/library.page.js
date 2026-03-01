@@ -810,7 +810,7 @@ function makeLibraryReorderHintEl() {
   ensureLibraryHintStyles();
   const hint = document.createElement("div");
   hint.className = "nxReorderHint";
-  hint.innerHTML = `Hold and drag a game to rearrange your Library<br><span style='opacity:0.85;'>Or right-click a game to move it to a specific position</span>`;
+  hint.innerHTML = `Hold and drag a game to rearrange your Library<br><span style='opacity:0.85;'>Right-click on a game to open context menu</span>`;
   return hint;
 }
 
