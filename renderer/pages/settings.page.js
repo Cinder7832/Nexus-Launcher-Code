@@ -4,6 +4,298 @@
   const WEBSITE_URL = "https://nexus-launcher.base44.app/";
   const SETTINGS_STYLE_ID = "nxSettingsLaunchModeStyle";
   const LAYOUT_STYLE_ID = "nxSettingsLayoutRevampStyle";
+  const CHANGELOG_STYLE_ID = "nxSettingsChangelogStyle";
+
+  // --------------------
+  // Launcher Changelog helpers
+  // --------------------
+  function ensureChangelogStyles() {
+    if (document.getElementById(CHANGELOG_STYLE_ID)) return;
+
+    const s = document.createElement("style");
+    s.id = CHANGELOG_STYLE_ID;
+    s.textContent = `
+      .nxChOverlay{
+        position: fixed; inset: 0; z-index: 99998;
+        display: grid; place-items: center;
+        padding: 22px;
+        background: rgba(0,0,0,.62);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        opacity: 0;
+        animation: nxChFadeIn .18s ease forwards;
+      }
+      .nxChCard{
+        width: min(980px, 94vw);
+        height: min(620px, 84vh);
+        border-radius: 24px;
+        background: rgba(18,20,30,.92);
+        border: 1px solid rgba(255,255,255,.10);
+        box-shadow: 0 40px 120px rgba(0,0,0,.65);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        transform: translateY(12px) scale(.985);
+        opacity: 0;
+        animation: nxChCardIn .22s cubic-bezier(.2,.9,.2,1) forwards;
+        animation-delay: .03s;
+      }
+      .nxChOverlay.isClosing{
+        animation: nxChFadeOut .16s ease forwards;
+      }
+      .nxChOverlay.isClosing .nxChCard{
+        animation: nxChCardOut .18s cubic-bezier(.2,.9,.2,1) forwards;
+      }
+      .nxChTop{
+        display:flex; align-items:center; justify-content:space-between;
+        gap: 12px; padding: 14px 16px;
+        border-bottom: 1px solid rgba(255,255,255,.06);
+      }
+      .nxChTitle{
+        font-weight: 950; font-size: 14px;
+        letter-spacing: .2px; color: rgba(255,255,255,.92);
+      }
+      .nxChClose{
+        border:none; cursor:pointer; border-radius: 14px;
+        padding: 10px 12px; background: rgba(255,255,255,.08);
+        color:#fff; font-weight: 900;
+        transition: transform .12s ease, background .16s ease, filter .16s ease;
+      }
+      .nxChClose:hover{ background: rgba(255,255,255,.12); transform: translateY(-1px); }
+      .nxChClose:active{ transform: translateY(0) scale(.98); filter: brightness(1.05); }
+      .nxChBody{ flex:1; display:flex; min-height: 0; }
+      .nxChLeft{
+        width: 290px; border-right: 1px solid rgba(255,255,255,.06);
+        padding: 12px; overflow:auto;
+      }
+      .nxChRight{ flex:1; padding: 16px; overflow:auto; min-width: 0; }
+      .nxChItem{
+        width: 100%; text-align: left;
+        border: 1px solid rgba(255,255,255,.08);
+        background: rgba(255,255,255,.04);
+        border-radius: 16px; padding: 12px 12px;
+        cursor: pointer; color: rgba(255,255,255,.82);
+        font-weight: 850;
+        transition: transform .12s ease, background .16s ease, border-color .16s ease;
+      }
+      .nxChItem + .nxChItem{ margin-top: 10px; }
+      .nxChItem:hover{
+        background: rgba(255,255,255,.06);
+        border-color: rgba(255,255,255,.12);
+        transform: translateY(-1px);
+      }
+      .nxChItem.active{
+        background: rgba(124,92,255,.22);
+        border-color: rgba(124,92,255,.30);
+        box-shadow: 0 14px 34px rgba(124,92,255,.12);
+        color: #fff;
+      }
+      .nxChItemSub{
+        margin-top: 5px; font-size: 12px;
+        font-weight: 800; color: rgba(255,255,255,.60);
+      }
+      .nxChHead{
+        font-weight: 950; font-size: 16px;
+        letter-spacing: .2px; color: #fff;
+      }
+      .nxChMeta{
+        margin-top: 6px; color: rgba(255,255,255,.62);
+        font-weight: 850; font-size: 12.5px;
+      }
+      .nxChText{
+        margin-top: 12px; white-space: pre-wrap;
+        line-height: 1.55; font-weight: 700;
+        color: rgba(255,255,255,.76); font-size: 13.5px;
+        opacity: 1; transform: translateY(0);
+        transition: opacity .18s ease, transform .18s ease;
+      }
+      .nxChText.isSwap{ opacity: 0; transform: translateY(6px); }
+      @keyframes nxChFadeIn{ from{opacity:0;} to{opacity:1;} }
+      @keyframes nxChCardIn{ from{opacity:0; transform: translateY(12px) scale(.985);} to{opacity:1; transform: translateY(0) scale(1);} }
+      @keyframes nxChFadeOut{ from{opacity:1;} to{opacity:0;} }
+      @keyframes nxChCardOut{ from{opacity:1; transform: translateY(0) scale(1);} to{opacity:0; transform: translateY(12px) scale(.985);} }
+    `;
+    document.head.appendChild(s);
+  }
+
+  function changelogTextToHtml(raw) {
+    const lines = String(raw || "").split(/\r?\n/);
+    let html = "";
+    let inList = false;
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("- ")) {
+        if (!inList) { html += "<ul>"; inList = true; }
+        html += `<li>${trimmed.slice(2)}</li>`;
+      } else {
+        if (inList) { html += "</ul>"; inList = false; }
+        if (trimmed) html += `<p>${trimmed}</p>`;
+      }
+    }
+    if (inList) html += "</ul>";
+    return html || "<p>No notes provided.</p>";
+  }
+
+  function normalizeChangelogEntries(data) {
+    const raw = data?.entries ?? data?.versions ?? data?.changelog ?? [];
+    const arr = Array.isArray(raw) ? raw : [];
+    return arr
+      .map((e) => ({
+        version: String(e?.version ?? e?.ver ?? "").trim(),
+        date: String(e?.date ?? e?.released ?? "").trim(),
+        title: String(e?.title ?? "").trim(),
+        text: String(e?.text ?? e?.notes ?? e?.body ?? "").trim()
+      }))
+      .filter((e) => e.version || e.title || e.text || e.date);
+  }
+
+  function openChangelogModal(label, entries) {
+    ensureChangelogStyles();
+
+    const list = Array.isArray(entries) ? entries : [];
+    let idx = 0;
+    let closing = false;
+
+    const overlay = document.createElement("div");
+    overlay.className = "nxChOverlay";
+
+    const card = document.createElement("div");
+    card.className = "nxChCard";
+
+    const top = document.createElement("div");
+    top.className = "nxChTop";
+
+    const title = document.createElement("div");
+    title.className = "nxChTitle";
+    title.textContent = `Changelog — ${label}`;
+
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "nxChClose";
+    closeBtn.type = "button";
+    closeBtn.textContent = "Close";
+
+    top.appendChild(title);
+    top.appendChild(closeBtn);
+
+    const body = document.createElement("div");
+    body.className = "nxChBody";
+
+    const left = document.createElement("div");
+    left.className = "nxChLeft";
+
+    const right = document.createElement("div");
+    right.className = "nxChRight";
+
+    const head = document.createElement("div");
+    head.className = "nxChHead";
+
+    const meta = document.createElement("div");
+    meta.className = "nxChMeta";
+
+    const text = document.createElement("div");
+    text.className = "nxChText";
+
+    right.appendChild(head);
+    right.appendChild(meta);
+    right.appendChild(text);
+
+    body.appendChild(left);
+    body.appendChild(right);
+
+    card.appendChild(top);
+    card.appendChild(body);
+    overlay.appendChild(card);
+
+    function close() {
+      if (closing) return;
+      closing = true;
+      document.removeEventListener("keydown", onKey);
+      overlay.classList.add("isClosing");
+      setTimeout(() => overlay.remove(), 200);
+    }
+
+    function onKey(e) {
+      if (e.key === "Escape") close();
+    }
+
+    function setActive(i) {
+      idx = Math.max(0, Math.min(list.length - 1, i));
+
+      const items = left.querySelectorAll(".nxChItem");
+      items.forEach((el, n) => el.classList.toggle("active", n === idx));
+
+      const entry = list[idx] || {};
+      const mainTitle = entry.title
+        ? `${entry.version ? `v${entry.version} — ` : ""}${entry.title}`
+        : entry.version
+          ? `v${entry.version}`
+          : "Changelog";
+      const sub = [entry.date ? `Released: ${entry.date}` : ""].filter(Boolean).join(" • ");
+
+      text.classList.add("isSwap");
+      setTimeout(() => {
+        head.textContent = mainTitle;
+        meta.textContent = sub;
+        text.innerHTML = changelogTextToHtml(entry.text);
+        requestAnimationFrame(() => text.classList.remove("isSwap"));
+      }, 140);
+    }
+
+    if (!list.length) {
+      left.innerHTML = `<div style="color:rgba(255,255,255,.65); font-weight:800; padding:10px;">No changelog entries yet.</div>`;
+      head.textContent = "No changelog";
+      meta.textContent = "";
+      text.textContent = "No entries found. Check back later.";
+    } else {
+      left.innerHTML = "";
+      list.forEach((e, i) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "nxChItem";
+        btn.innerHTML = `
+          <div>${e.version ? `v${e.version}` : e.title || "Update"}</div>
+          <div class="nxChItemSub">${e.date || (e.title ? e.title : "")}</div>
+        `;
+        btn.addEventListener("click", () => setActive(i));
+        left.appendChild(btn);
+      });
+      setActive(0);
+    }
+
+    overlay.addEventListener("click", (e) => {
+      if (!card.contains(e.target)) close();
+    });
+
+    closeBtn.addEventListener("click", close);
+    document.addEventListener("keydown", onKey);
+
+    document.body.appendChild(overlay);
+    closeBtn.focus();
+  }
+
+  function wireChangelogButton(btn) {
+    if (!btn) return;
+    btn.onclick = async () => {
+      if (!window.api?.getLauncherChangelog) return;
+      btn.disabled = true;
+      const oldText = btn.textContent;
+      btn.textContent = "Loading...";
+      try {
+        const res = await window.api.getLauncherChangelog();
+        if (!res?.ok) throw new Error(res?.error || "Failed to fetch changelog");
+        const entries = normalizeChangelogEntries(res.data);
+        openChangelogModal("Nexus Launcher", entries);
+      } catch (e) {
+        console.error(e);
+        if (typeof window.showToast === "function") {
+          window.showToast("Failed to load launcher changelog.", "error");
+        }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = oldText;
+      }
+    };
+  }
 
   function ensureModalStyles() {
     if (document.getElementById(MODAL_STYLE_ID)) return;
@@ -800,6 +1092,7 @@
         updatesHost: page.querySelector("#nxUpdatesHost"),
         installedVal: page.querySelector("#nxInstalledGamesVal"),
         websiteBtn: page.querySelector("#nxWebsiteBtn"),
+        changelogBtn: page.querySelector("#nxLauncherChangelogBtn"),
         systemHost: page.querySelector("#nxSystemHost"),
         notifHost: page.querySelector("#nxNotifHost")
       };
@@ -865,6 +1158,18 @@
       </div>
     `;
 
+    const changelogPanel = document.createElement("div");
+    changelogPanel.className = "panel";
+    changelogPanel.innerHTML = `
+      <div class="panelTitle">Changelog</div>
+      <div class="nxTinyNote" style="margin-top:0">View what's new in the Nexus Launcher</div>
+      <div style="margin-top:12px; display:flex; justify-content:flex-start;">
+        <div class="nxSeg" role="group" aria-label="Changelog">
+          <button class="nxSegBtn active" id="nxLauncherChangelogBtn" type="button">View Changelog</button>
+        </div>
+      </div>
+    `;
+
     // Insert grid where the main panel was
     const parent = mainPanel.parentElement;
     parent.insertBefore(grid, mainPanel);
@@ -873,10 +1178,11 @@
     left.appendChild(mainPanel);
     left.appendChild(systemPanel);
     left.appendChild(notifPanel);
-    
+
     // ✅ Right Column: Updates at the very top!
     right.appendChild(updatesPanel); 
     right.appendChild(libraryPanel);
+    right.appendChild(changelogPanel);
     right.appendChild(websitePanel);
 
     grid.appendChild(left);
@@ -886,6 +1192,7 @@
       updatesHost: updatesPanel.querySelector("#nxUpdatesHost"),
       installedVal: libraryPanel.querySelector("#nxInstalledGamesVal"),
       websiteBtn: websitePanel.querySelector("#nxWebsiteBtn"),
+      changelogBtn: changelogPanel.querySelector("#nxLauncherChangelogBtn"),
       systemHost: systemPanel.querySelector("#nxSystemHost"),
       notifHost: notifPanel.querySelector("#nxNotifHost")
     };
@@ -949,6 +1256,7 @@
     await refreshInstalledCount(layout?.installedVal);
 
     try { wireWebsiteButton(layout?.websiteBtn || document.getElementById("nxWebsiteBtn")); } catch {}
+    try { wireChangelogButton(layout?.changelogBtn || document.getElementById("nxLauncherChangelogBtn")); } catch {}
 
     try {
       const v = await window.api.getLauncherVersion?.();

@@ -39,6 +39,9 @@ const LAUNCHER_UPDATE = {
   preferNameIncludes: ""
 };
 
+const LAUNCHER_CHANGELOG_URL =
+  "https://raw.githubusercontent.com/Cinder7832/unity-games/main/launcher_changelog.json";
+
 let lastLauncherCheck = null;
 let launcherInstallerPath = null;
 let launcherDownloadedVersion = null;
@@ -1310,6 +1313,31 @@ ipcMain.handle("get-changelog", async (_, gameId) => {
 
     const url = normalizeGithubUrl(rawUrl);
     if (!isUrl(url)) return { ok: false, error: "Invalid changelogUrl" };
+
+    const cached = changelogCache.get(url);
+    if (cached && Date.now() - cached.at < CHANGELOG_TTL_MS) {
+      return { ok: true, cached: true, url, data: cached.data };
+    }
+
+    const data = await fetchRemoteChangelog(url);
+    changelogCache.set(url, { at: Date.now(), data });
+
+    return { ok: true, cached: false, url, data };
+  } catch (e) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+});
+
+// --------------------
+// ✅ LAUNCHER CHANGELOG IPC
+// --------------------
+ipcMain.handle("get-launcher-changelog", async () => {
+  try {
+    const raw = String(LAUNCHER_CHANGELOG_URL || "").trim();
+    if (!raw) return { ok: false, error: "No launcher changelog URL configured" };
+
+    const url = normalizeGithubUrl(raw);
+    if (!isUrl(url)) return { ok: false, error: "Invalid launcher changelog URL" };
 
     const cached = changelogCache.get(url);
     if (cached && Date.now() - cached.at < CHANGELOG_TTL_MS) {

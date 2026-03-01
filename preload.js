@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld("api", {
 
   // changelog
   getChangelog: (gameId) => ipcRenderer.invoke("get-changelog", gameId),
+  getLauncherChangelog: () => ipcRenderer.invoke("get-launcher-changelog"),
 
   // ✅ Auto-update per game
   getAutoUpdateMap: () => ipcRenderer.invoke("get-auto-update-map"),
