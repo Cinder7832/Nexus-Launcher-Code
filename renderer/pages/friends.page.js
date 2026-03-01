@@ -11,7 +11,8 @@
   let realtimeSubs = [];
   let presenceInterval = null;
   let unreadCounts = {};      // friendId -> count
-  let typingChannel = null;   // Supabase broadcast channel for typing indicators
+  let searchFilter = "";      // live search filter for friends list
+  let typingChannel = null;
   let friendIsTyping = false; // whether the active chat friend is currently typing
   let friendTypingTimer = null;
   let myTypingTimer = null;
@@ -694,12 +695,11 @@
         <!-- Profile editor placeholder -->
         <div id="nxFrProfileEditorSlot"></div>
 
-        <!-- Search / Add friend -->
+        <!-- Search friends -->
         <div class="nxFrSearchBar">
           <div class="nxFrSearchWrap">
             <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.35-4.35"></path></svg>
-            <input type="text" id="nxFrAddInput" placeholder="Add friend by code..." maxlength="20" spellcheck="false" autocomplete="off" />
-            <button class="nxFrAddBtn" id="nxFrAddBtn" type="button">Add</button>
+            <input type="text" id="nxFrSearchInput" placeholder="Search friends..." maxlength="40" spellcheck="false" autocomplete="off" />
           </div>
         </div>
 
@@ -720,6 +720,20 @@
     }
 
     leftHtml += `
+        </div>
+
+        <!-- Add Friend FAB -->
+        <button class="nxFrFab" id="nxFrFabBtn" type="button" title="Add friend">
+          <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>
+        </button>
+
+        <!-- Add Friend Popover -->
+        <div class="nxFrAddPopover" id="nxFrAddPopover">
+          <div class="nxFrAddPopoverTitle">Add Friend</div>
+          <div class="nxFrAddPopoverRow">
+            <input type="text" id="nxFrAddInput" placeholder="Enter friend code..." maxlength="20" spellcheck="false" autocomplete="off" />
+            <button class="nxFrBtn primary" id="nxFrAddBtn" type="button">Send</button>
+          </div>
         </div>
       </div>
     `;
@@ -980,7 +994,15 @@
   }
 
   // ---- Event Binding ----
+  let _popoverCloseHandler = null;
+
   function bindAllEvents(wrap) {
+    // Clean up previous popover close handler
+    if (_popoverCloseHandler) {
+      document.removeEventListener("click", _popoverCloseHandler);
+      _popoverCloseHandler = null;
+    }
+
     // Copy friend code
     wrap.querySelector("#nxFrCopyCode")?.addEventListener("click", () => {
       const code = myProfile?.friend_code || "";
@@ -1049,9 +1071,44 @@
       });
     });
 
-    // Add friend
+    // Search filter
+    const searchInput = wrap.querySelector("#nxFrSearchInput");
+    if (searchInput) {
+      searchInput.value = searchFilter;
+      searchInput.addEventListener("input", () => {
+        searchFilter = searchInput.value;
+        const listEl = wrap.querySelector("#nxFrListContent");
+        if (!listEl) return;
+        // Filter friend items in-place (no full re-render)
+        const q = searchFilter.trim().toLowerCase();
+        listEl.querySelectorAll(".nxFrItem").forEach(item => {
+          const name = item.querySelector(".nxFrName")?.textContent?.toLowerCase() || "";
+          item.style.display = (!q || name.includes(q)) ? "" : "none";
+        });
+      });
+    }
+
+    // FAB + Add Friend Popover
+    const fabBtn = wrap.querySelector("#nxFrFabBtn");
+    const addPopover = wrap.querySelector("#nxFrAddPopover");
     const addInput = wrap.querySelector("#nxFrAddInput");
     const addBtn = wrap.querySelector("#nxFrAddBtn");
+
+    fabBtn?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      addPopover?.classList.toggle("open");
+      if (addPopover?.classList.contains("open")) {
+        setTimeout(() => addInput?.focus(), 50);
+      }
+    });
+
+    // Close popover on outside click
+    _popoverCloseHandler = function(e) {
+      if (addPopover?.classList.contains("open") && !addPopover.contains(e.target) && e.target !== fabBtn) {
+        addPopover.classList.remove("open");
+      }
+    };
+    document.addEventListener("click", _popoverCloseHandler);
 
     async function doAdd() {
       const code = addInput?.value || "";
@@ -1063,12 +1120,13 @@
       if (res.ok) {
         if (typeof showToast === "function") showToast("Friend request sent!", "success");
         if (addInput) addInput.value = "";
+        addPopover?.classList.remove("open");
       } else {
         if (typeof showToast === "function") showToast(res.error || "Failed", "error");
       }
 
       addBtn.disabled = false;
-      addBtn.textContent = "Add";
+      addBtn.textContent = "Send";
       renderContent();
     }
 
