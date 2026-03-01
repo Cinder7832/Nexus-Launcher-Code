@@ -392,6 +392,13 @@
       }
       .nxBtnPrimary:hover{ background: rgba(124,92,255,.34); }
 
+      .nxBtnDanger{
+        background: rgba(255,60,90,.22);
+        border: 1px solid rgba(255,60,90,.22);
+      }
+      .nxBtnDanger:hover{ background: rgba(255,60,90,.28); }
+      .nxBtnDanger:active{ filter: brightness(.98); }
+
       @keyframes nxFadeIn{
         from{ opacity:0; transform: translateY(8px); }
         to{ opacity:1; transform: translateY(0); }
@@ -1095,7 +1102,8 @@
         changelogBtn: page.querySelector("#nxLauncherChangelogBtn"),
         systemHost: page.querySelector("#nxSystemHost"),
         notifHost: page.querySelector("#nxNotifHost"),
-        unlockAllBtn: page.querySelector("#nxUnlockAllGamesBtn")
+        unlockAllBtn: page.querySelector("#nxUnlockAllGamesBtn"),
+        uninstallAllBtn: page.querySelector("#nxUninstallAllGamesBtn")
       };
     }
 
@@ -1145,12 +1153,15 @@
         <div class="nxMiniKey">Installed games</div>
         <div class="nxMiniVal" id="nxInstalledGamesVal">—</div>
       </div>
-      <div style="margin-top:12px; display:flex; justify-content:flex-start;">
+      <div style="margin-top:12px; display:flex; justify-content:flex-start; gap:10px; flex-wrap:wrap;">
         <div class="nxSeg" role="group" aria-label="Library locks">
           <button class="nxSegBtn" id="nxUnlockAllGamesBtn" type="button">Unlock all games</button>
         </div>
+        <div class="nxSeg" role="group" aria-label="Uninstall all">
+          <button class="nxSegBtn" id="nxUninstallAllGamesBtn" type="button">Uninstall all games</button>
+        </div>
       </div>
-      <div class="nxTinyNote">Remove position locks from every game in your Library</div>
+      <div class="nxTinyNote">Remove position locks or uninstall every game in your Library</div>
     `;
 
     const websitePanel = document.createElement("div");
@@ -1202,7 +1213,8 @@
       changelogBtn: changelogPanel.querySelector("#nxLauncherChangelogBtn"),
       systemHost: systemPanel.querySelector("#nxSystemHost"),
       notifHost: notifPanel.querySelector("#nxNotifHost"),
-      unlockAllBtn: libraryPanel.querySelector("#nxUnlockAllGamesBtn")
+      unlockAllBtn: libraryPanel.querySelector("#nxUnlockAllGamesBtn"),
+      uninstallAllBtn: libraryPanel.querySelector("#nxUninstallAllGamesBtn")
     };
   }
 
@@ -1343,6 +1355,111 @@
         document.addEventListener("keydown", onKey);
         document.body.appendChild(overlay);
         noBtn?.focus();
+      };
+    }
+
+    // ✅ Uninstall all games button
+    const uninstallAllBtn = layout?.uninstallAllBtn || document.getElementById("nxUninstallAllGamesBtn");
+    if (uninstallAllBtn) {
+      uninstallAllBtn.onclick = async () => {
+        let installed = {};
+        try { installed = await window.api.getInstalled?.() || {}; } catch {}
+        const ids = Object.keys(installed);
+        const count = ids.length;
+
+        if (!count) {
+          if (typeof window.showToast === "function") {
+            window.showToast("No games are currently installed.", "info");
+          }
+          return;
+        }
+
+        ensureModalStyles();
+
+        const confirmed = await new Promise((resolve) => {
+          const overlay = document.createElement("div");
+          overlay.className = "nxModalOverlay";
+
+          overlay.innerHTML = `
+            <div class="nxModalCard" role="dialog" aria-modal="true">
+              <div class="nxModalTop">
+                <div class="nxModalIcon" aria-hidden="true" style="background: rgba(255,60,90,.14); border-color: rgba(255,60,90,.22);">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M12 9v5"></path>
+                    <path d="M12 17h.01"></path>
+                    <path d="M10.3 3.6 2.7 17a2 2 0 0 0 1.7 3h15.2a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"></path>
+                  </svg>
+                </div>
+                <div style="flex:1;">
+                  <div class="nxModalTitle">Uninstall all games?</div>
+                  <div class="nxModalMsg">
+                    This will permanently remove <strong>${count}</strong> installed game${count > 1 ? "s" : ""} from your computer. You can install them again later from the Store.
+                  </div>
+                </div>
+              </div>
+
+              <div class="nxModalDivider"></div>
+
+              <div class="nxModalActions">
+                <button class="nxBtn" data-act="no" type="button">Cancel</button>
+                <button class="nxBtn nxBtnDanger" data-act="yes" type="button">Uninstall all</button>
+              </div>
+            </div>
+          `;
+
+          const card = overlay.querySelector(".nxModalCard");
+          const noBtn = overlay.querySelector('[data-act="no"]');
+          const yesBtn = overlay.querySelector('[data-act="yes"]');
+
+          function close(val) {
+            document.removeEventListener("keydown", onKey);
+            overlay.remove();
+            resolve(val);
+          }
+
+          function onKey(e) {
+            if (e.key === "Escape") close(false);
+          }
+
+          overlay.addEventListener("click", (e) => {
+            if (!card.contains(e.target)) close(false);
+          });
+
+          noBtn?.addEventListener("click", () => close(false));
+          yesBtn?.addEventListener("click", () => close(true));
+
+          document.addEventListener("keydown", onKey);
+          document.body.appendChild(overlay);
+          noBtn?.focus();
+        });
+
+        if (!confirmed) return;
+
+        uninstallAllBtn.disabled = true;
+        const oldText = uninstallAllBtn.textContent;
+        uninstallAllBtn.textContent = "Uninstalling…";
+
+        let failed = 0;
+        for (const gameId of ids) {
+          try {
+            const res = await window.api.uninstallGame(gameId);
+            if (!res?.ok) failed++;
+          } catch {
+            failed++;
+          }
+        }
+
+        uninstallAllBtn.disabled = false;
+        uninstallAllBtn.textContent = oldText;
+        await refreshInstalledCount(layout?.installedVal);
+
+        if (typeof window.showToast === "function") {
+          if (failed === 0) {
+            window.showToast(`Uninstalled ${count} game${count > 1 ? "s" : ""}.`, "success");
+          } else {
+            window.showToast(`Uninstalled ${count - failed} of ${count} games. ${failed} failed.`, "error");
+          }
+        }
       };
     }
 
