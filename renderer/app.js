@@ -260,6 +260,39 @@ window.showDetailsPage = function(gameId) {
 const pageEl = document.getElementById("page");
 let isSwitching = false;
 
+// ----------------------------
+// ✅ Back-to-top button
+// ----------------------------
+(function initBackToTop() {
+  const main = document.querySelector(".main");
+  if (!main || !pageEl) return;
+
+  const btn = document.createElement("button");
+  btn.className = "backToTopBtn";
+  btn.type = "button";
+  btn.title = "Back to top";
+  btn.setAttribute("aria-label", "Scroll back to top");
+  btn.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5"></path><path d="M5 12l7-7 7 7"></path></svg>`;
+  main.appendChild(btn);
+
+  const SCROLL_THRESHOLD = 400;
+  let visible = false;
+
+  function update() {
+    const show = pageEl.scrollTop > SCROLL_THRESHOLD;
+    if (show !== visible) {
+      visible = show;
+      btn.classList.toggle("visible", visible);
+    }
+  }
+
+  pageEl.addEventListener("scroll", update, { passive: true });
+
+  btn.addEventListener("click", () => {
+    pageEl.scrollTo({ top: 0, behavior: "smooth" });
+  });
+})();
+
 // ✅ remember scroll positions per page (for back navigation)
 window.__pageScrollTopByPage = window.__pageScrollTopByPage || Object.create(null);
 window.__restoreScrollForPage = window.__restoreScrollForPage || "";
