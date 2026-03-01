@@ -785,6 +785,39 @@ function saveLibraryOrder(order) {
   } catch {}
 }
 
+/* =========================================================
+   ✅ Library lock (prevents reorder via drag or move-to-position)
+   ========================================================= */
+const LIB_LOCKED_KEY = "nx.libraryLocked.v1";
+
+function loadLockedGames() {
+  try {
+    const raw = localStorage.getItem(LIB_LOCKED_KEY);
+    const arr = JSON.parse(raw || "[]");
+    return new Set(Array.isArray(arr) ? arr.map(String) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveLockedGames(lockedSet) {
+  try {
+    localStorage.setItem(LIB_LOCKED_KEY, JSON.stringify([...lockedSet]));
+  } catch {}
+}
+
+function isGameLocked(gameId) {
+  return loadLockedGames().has(String(gameId || ""));
+}
+
+function toggleGameLock(gameId) {
+  const set = loadLockedGames();
+  const gid = String(gameId || "");
+  if (set.has(gid)) set.delete(gid); else set.add(gid);
+  saveLockedGames(set);
+  return set.has(gid);
+}
+
 function sortLibraryGamesByOrder(games) {
   const order = loadLibraryOrder();
   if (!order.length) return games;
@@ -816,7 +849,7 @@ function ensureLibraryReorderStyles() {
       touch-action:none;
     }
 
-    .nxReorderMode [data-game-id]:not(.nxDragging){
+    .nxReorderMode [data-game-id]:not(.nxDragging):not(.nxLocked){
       animation: nxWiggle 0.65s cubic-bezier(.2,.9,.2,1) infinite;
       transform-origin: 50% 60%;
     }
@@ -844,6 +877,88 @@ function ensureLibraryReorderStyles() {
       border: 1px dashed rgba(255,255,255,.14);
       box-shadow: inset 0 0 0 1px rgba(255,255,255,.05);
       transition: transform .22s cubic-bezier(.2,.9,.2,1), opacity .22s ease;
+    }
+
+    /* ✅ Lock icon badge (subtle, non-distracting) */
+    .nxLockBadge{
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 4;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      background: rgba(0,0,0,.45);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      pointer-events: none;
+      opacity: .55;
+      transition: opacity .18s ease;
+    }
+    .gameTile:hover .nxLockBadge{
+      opacity: .75;
+    }
+    .nxLockBadge svg{
+      width: 13px;
+      height: 13px;
+      fill: rgba(255,255,255,.85);
+    }
+
+    /* ✅ Library context menu */
+    .nxCtxBackdrop{
+      position: fixed;
+      inset: 0;
+      z-index: 99995;
+      background: transparent;
+    }
+    .nxCtxMenu{
+      position: fixed;
+      z-index: 99996;
+      min-width: 190px;
+      padding: 6px;
+      border-radius: 14px;
+      background: rgba(18,20,30,.94);
+      border: 1px solid rgba(255,255,255,.10);
+      box-shadow: 0 20px 60px rgba(0,0,0,.65);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      animation: nxCtxIn .12s ease both;
+    }
+    .nxCtxItem{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 9px 12px;
+      border: none;
+      border-radius: 10px;
+      background: transparent;
+      color: rgba(255,255,255,.88);
+      font-weight: 800;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background .12s ease;
+    }
+    .nxCtxItem:hover{
+      background: rgba(255,255,255,.08);
+    }
+    .nxCtxItem svg{
+      width: 15px;
+      height: 15px;
+      flex: 0 0 auto;
+      opacity: .7;
+    }
+    .nxCtxSep{
+      height: 1px;
+      margin: 4px 8px;
+      background: rgba(255,255,255,.06);
+    }
+    @keyframes nxCtxIn{
+      from{ opacity:0; transform: scale(.96) translateY(-4px); }
+      to{ opacity:1; transform: scale(1) translateY(0); }
     }
   `;
   document.head.appendChild(s);
@@ -953,6 +1068,86 @@ function ensureLibraryPlayButtonGlowStyles() {
   document.head.appendChild(s);
 }
 
+/* =========================================================
+   ✅ Right-click context menu for Library tiles
+   ========================================================= */
+let nxActiveCtxMenu = null;
+let nxActiveCtxBackdrop = null;
+
+function closeActiveCtxMenu() {
+  if (nxActiveCtxMenu) {
+    try { nxActiveCtxMenu.remove(); } catch {}
+    nxActiveCtxMenu = null;
+  }
+  if (nxActiveCtxBackdrop) {
+    try { nxActiveCtxBackdrop.remove(); } catch {}
+    nxActiveCtxBackdrop = null;
+  }
+}
+
+function openLibraryCtxMenu(x, y, items) {
+  closeActiveCtxMenu();
+  ensureLibraryReorderStyles(); // ensure ctx menu styles are injected
+
+  // ✅ Full-screen invisible backdrop blocks all interaction behind the menu
+  const backdrop = document.createElement("div");
+  backdrop.className = "nxCtxBackdrop";
+  nxActiveCtxBackdrop = backdrop;
+
+  const menu = document.createElement("div");
+  menu.className = "nxCtxMenu";
+
+  for (const item of items) {
+    if (item.separator) {
+      const sep = document.createElement("div");
+      sep.className = "nxCtxSep";
+      menu.appendChild(sep);
+      continue;
+    }
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "nxCtxItem";
+    btn.innerHTML = `${item.icon || ""}${item.label}`;
+    btn.addEventListener("click", () => {
+      closeActiveCtxMenu();
+      if (typeof item.action === "function") item.action();
+    });
+    menu.appendChild(btn);
+  }
+
+  backdrop.appendChild(menu);
+  document.body.appendChild(backdrop);
+  nxActiveCtxMenu = menu;
+
+  // Position with boundary clamping
+  const rect = menu.getBoundingClientRect();
+  const left = Math.min(x, window.innerWidth - rect.width - 8);
+  const top = Math.min(y, window.innerHeight - rect.height - 8);
+  menu.style.left = `${Math.max(4, left)}px`;
+  menu.style.top = `${Math.max(4, top)}px`;
+
+  // Click on backdrop (outside menu) closes it
+  backdrop.addEventListener("pointerdown", (e) => {
+    if (!menu.contains(e.target)) closeActiveCtxMenu();
+  });
+
+  // Also close on right-click on backdrop
+  backdrop.addEventListener("contextmenu", (e) => {
+    if (!menu.contains(e.target)) {
+      e.preventDefault();
+      closeActiveCtxMenu();
+    }
+  });
+
+  // Escape closes
+  const onKey = (e) => {
+    if (e.key === "Escape") {
+      closeActiveCtxMenu();
+      document.removeEventListener("keydown", onKey);
+    }
+  };
+  document.addEventListener("keydown", onKey);
+}
 
 
 /* --------------------------
@@ -1278,7 +1473,13 @@ function attachLibraryReorder(gridEl, canReorder) {
     draggingEl.style.left = `${Math.round(clientX - offsetX)}px`;
     draggingEl.style.top = `${Math.round(clientY - offsetY)}px`;
 
-    const tiles = getTiles().filter((t) => t !== draggingEl);
+    // ✅ Skip locked tiles when finding drop target (locked tiles stay in place)
+    const tiles = getTiles().filter((t) => {
+      if (t === draggingEl) return false;
+      const gid = String(t.dataset.gameId || "");
+      if (gid && isGameLocked(gid)) return false;
+      return true;
+    });
     let best = null;
     let bestDist = Infinity;
 
@@ -1351,6 +1552,10 @@ function attachLibraryReorder(gridEl, canReorder) {
     if (!tile) return;
 
     if (e.target.closest("button")) return;
+
+    // ✅ Don't allow dragging locked tiles
+    const tileGameId = String(tile.dataset.gameId || "");
+    if (tileGameId && isGameLocked(tileGameId)) return;
 
     enableNoSelect();
     e.preventDefault();
@@ -1500,6 +1705,16 @@ window.renderLibrary = async function () {
       return;
     }
 
+    // ✅ Block move for locked games
+    if (isGameLocked(game.id)) {
+      if (typeof window.showToast === "function") {
+        window.showToast("Unlock this game before moving it.", "info");
+      } else if (typeof showToast === "function") {
+        showToast("Unlock this game before moving it.", "info");
+      }
+      return;
+    }
+
     const order = nxLibGetNormalizedOrder(installedIds);
     const maxPos = Math.max(1, order.length || 1);
     const curPos = Math.max(1, order.indexOf(String(game.id)) + 1);
@@ -1510,11 +1725,31 @@ window.renderLibrary = async function () {
     const target = Math.max(1, Math.min(maxPos, Number(newPos)));
     const id = String(game.id);
 
-    const curIdx = order.indexOf(id);
-    if (curIdx >= 0) order.splice(curIdx, 1);
-    order.splice(target - 1, 0, id);
+    // ✅ Compute new order on a copy, then check if any locked game would be displaced
+    const proposed = [...order];
+    const curIdx = proposed.indexOf(id);
+    if (curIdx >= 0) proposed.splice(curIdx, 1);
+    proposed.splice(target - 1, 0, id);
 
-    saveLibraryOrder(order);
+    const lockedSet = loadLockedGames();
+    let displaced = false;
+    for (let i = 0; i < order.length; i++) {
+      if (lockedSet.has(order[i])) {
+        const newIdx = proposed.indexOf(order[i]);
+        if (newIdx !== i) { displaced = true; break; }
+      }
+    }
+
+    if (displaced) {
+      if (typeof window.showToast === "function") {
+        window.showToast("Can't move there — a locked game would be displaced.", "info");
+      } else if (typeof showToast === "function") {
+        showToast("Can't move there — a locked game would be displaced.", "info");
+      }
+      return;
+    }
+
+    saveLibraryOrder(proposed);
 
     // Recompute order and re-render
     allGames = sortLibraryGamesByOrder(allGames);
@@ -1524,9 +1759,10 @@ window.renderLibrary = async function () {
 function renderTiles(list, showHint) {
     // If we repeatedly render the same tile list (common during download progress
     // events), avoid touching the DOM so hover/transition animations don't restart.
+    const lockedSet = loadLockedGames();
     const key =
       `${window.__nxReorderMode ? 1 : 0}|${showHint ? 1 : 0}|` +
-      list.map((g) => `${g.id}:${g.update ? 1 : 0}`).join(",");
+      list.map((g) => `${g.id}:${g.update ? 1 : 0}:${lockedSet.has(String(g.id)) ? "L" : ""}`).join(",");
     if (grid.dataset.nxKey === key) return;
     grid.dataset.nxKey = key;
 
@@ -1567,6 +1803,7 @@ if (showHint) {
       tile.innerHTML = `
         <div class="tileImage" style="background-image:url('${imgUrl}')"></div>
         <div class="tileOverlay"></div>
+        ${isGameLocked(game.id) ? `<div class="nxLockBadge"><svg viewBox="0 0 24 24"><path d="M17 11V8A5 5 0 0 0 7 8v3H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1Zm-8-3a3 3 0 1 1 6 0v3H9V8Z"/></svg></div>` : ""}
 
         <div class="tileInfo">
           <div class="tileName">${game.name}</div>
@@ -1594,6 +1831,9 @@ if (showHint) {
           </div>
         </div>
       `;
+
+      // ✅ Add nxLocked class for CSS targeting
+      if (isGameLocked(game.id)) tile.classList.add("nxLocked");
 
       const goDetails = (e) => {
         e && e.stopPropagation();
@@ -1644,14 +1884,35 @@ if (showHint) {
         };
       }
 
-      
-      // Right-click: move to a specific position in the Library order
+
+      // ✅ Right-click: context menu with Move and Lock options
       tile.addEventListener("contextmenu", (e) => {
         e.preventDefault();
         e.stopPropagation();
         // Don't hijack right-clicks on buttons (Play/Update/etc.)
         if (e.target && e.target.closest && e.target.closest("button")) return;
-        nxLibPromptMoveToPosition(game);
+
+        const locked = isGameLocked(game.id);
+        const moveIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>`;
+        const lockIcon = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 11V8A5 5 0 0 0 7 8v3H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1Zm-8-3a3 3 0 1 1 6 0v3H9V8Z"/></svg>`;
+        const unlockIcon = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 8A5 5 0 0 0 7 8v3H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-6V8a3 3 0 1 1 6 0h2Z"/></svg>`;
+
+        openLibraryCtxMenu(e.clientX, e.clientY, [
+          {
+            icon: moveIcon,
+            label: "Move to position",
+            action: () => nxLibPromptMoveToPosition(game)
+          },
+          { separator: true },
+          {
+            icon: locked ? unlockIcon : lockIcon,
+            label: locked ? "Unlock position" : "Lock position",
+            action: () => {
+              toggleGameLock(game.id);
+              applyFilterAndRender();
+            }
+          }
+        ]);
       });
 
 tile.onclick = (e) => {
