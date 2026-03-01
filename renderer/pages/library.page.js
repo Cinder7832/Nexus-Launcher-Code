@@ -1729,6 +1729,17 @@ window.renderLibrary = async function () {
     };
   }
 
+  // ✅ Updates-only toggle
+  const updatesToggleEl = document.getElementById("updatesOnlyToggle");
+  if (updatesToggleEl) {
+    updatesToggleEl.classList.toggle("active", !!window.__libraryUpdatesOnly);
+    updatesToggleEl.onclick = () => {
+      window.__libraryUpdatesOnly = !window.__libraryUpdatesOnly;
+      updatesToggleEl.classList.toggle("active", !!window.__libraryUpdatesOnly);
+      applyFilterAndRender();
+    };
+  }
+
   
   // --------------------------
   // ✅ Right-click: Move to position in Library
@@ -1948,6 +1959,8 @@ if (showHint) {
         e.stopPropagation();
         // Don't hijack right-clicks on buttons (Play/Update/etc.)
         if (e.target && e.target.closest && e.target.closest("button")) return;
+        // Don't show context menu when "Updates only" filter is active
+        if (window.__libraryUpdatesOnly) return;
 
         const locked = isGameLocked(game.id);
         const moveIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>`;
@@ -1984,14 +1997,19 @@ tile.onclick = (e) => {
 
   function applyFilterAndRender() {
   const term = String(window.__librarySearchTerm || "");
+  const updatesOnly = !!window.__libraryUpdatesOnly;
 
-  // Optional UX: disable reorder while searching
-  canReorderNow = !String(term || "").trim();
+  // Optional UX: disable reorder while searching or filtering
+  canReorderNow = !String(term || "").trim() && !updatesOnly;
 
   let list = allGames;
 
+  if (updatesOnly) {
+    list = list.filter((g) => !!g.update);
+  }
+
   if (String(term || "").trim()) {
-    list = allGames.filter((g) => matchesLibrarySearch(g, term));
+    list = list.filter((g) => matchesLibrarySearch(g, term));
   }
 
   const hasInstalled = allGames.length > 0;
@@ -2006,8 +2024,8 @@ tile.onclick = (e) => {
   }
 
   if (!hasVisible) {
-    emptyTitle && (emptyTitle.textContent = "No results");
-    emptySub && (emptySub.textContent = "Try a different search.");
+    emptyTitle && (emptyTitle.textContent = updatesOnly ? "No updates available" : "No results");
+    emptySub && (emptySub.textContent = updatesOnly ? "All your games are up to date." : "Try a different search.");
     empty && (empty.style.display = "");
     grid && (grid.style.display = "none");
     return;
@@ -2016,7 +2034,7 @@ tile.onclick = (e) => {
   empty && (empty.style.display = "none");
   grid && (grid.style.display = "");
 
-  const showHint = !term && list.length >= 2;
+  const showHint = !term && !updatesOnly && list.length >= 2;
   renderTiles(list, showHint);
 }
 

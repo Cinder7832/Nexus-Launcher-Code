@@ -259,6 +259,26 @@
 .btnSecondary:active {
   /* no transform on active */
 }
+
+/* ✅ Updates-only toggle (Library) */
+.nxUpdatesToggle{
+  transition:
+    background .16s ease,
+    border-color .16s ease,
+    box-shadow .18s ease,
+    transform .14s ease;
+  border: 1px solid transparent;
+}
+.nxUpdatesToggle.active{
+  background: rgba(124,92,255,.22);
+  border-color: rgba(124,92,255,.28);
+  box-shadow: 0 0 0 3px rgba(124,92,255,.10);
+  color: #fff;
+}
+.nxUpdatesToggle.active:hover{
+  background: rgba(124,92,255,.28);
+}
+
 /* =========================
    DETAILS PAGE
    ========================= */

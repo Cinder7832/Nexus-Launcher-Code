@@ -153,7 +153,10 @@ const templates = {
         <input class="search" id="librarySearch" placeholder="Search games or developers..." />
       </div>
 
-      <button class="btnSecondary" id="checkUpdatesBtn" type="button">Check for updates</button>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <button class="btnSecondary nxUpdatesToggle" id="updatesOnlyToggle" type="button">Updates only</button>
+        <button class="btnSecondary" id="checkUpdatesBtn" type="button">Check for updates</button>
+      </div>
     </div>
   </div>
 
