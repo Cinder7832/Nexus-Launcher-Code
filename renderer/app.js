@@ -562,7 +562,7 @@ function ensureLauncherUpdatePopupStyles() {
       position: fixed; inset: 0; z-index: 99996;
       display: grid; place-items: center;
       padding: 22px;
-      background: rgba(0,0,0,.62);
+      background: rgba(0,0,0,.78);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       animation: nxLuFadeIn .16s ease both;
@@ -570,7 +570,7 @@ function ensureLauncherUpdatePopupStyles() {
     .nxLuCard{
       width: min(560px, 92vw);
       border-radius: 22px;
-      background: rgba(18,20,30,.92);
+      background: rgba(18,20,30,.97);
       border: 1px solid rgba(255,255,255,.10);
       box-shadow: 0 40px 120px rgba(0,0,0,.65);
       overflow: hidden;
@@ -744,7 +744,7 @@ function openLauncherUpdatePopup(info) {
         position:fixed; inset:0; z-index:99997;
         display:grid; place-items:center;
         padding:22px;
-        background: rgba(0,0,0,.62);
+        background: rgba(0,0,0,.78);
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
         animation: nxLuFadeIn .16s ease both;
@@ -752,7 +752,7 @@ function openLauncherUpdatePopup(info) {
       .nxLuCard{
         width:min(560px, 92vw);
         border-radius:22px;
-        background: rgba(18,20,30,.92);
+        background: rgba(18,20,30,.97);
         border:1px solid rgba(255,255,255,.10);
         box-shadow: 0 34px 110px rgba(0,0,0,.65);
         overflow:hidden;

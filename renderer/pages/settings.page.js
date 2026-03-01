@@ -307,7 +307,7 @@
         position:fixed; inset:0; z-index:9999;
         display:grid; place-items:center;
         padding:22px;
-        background: rgba(0,0,0,.55);
+        background: rgba(0,0,0,.78);
         backdrop-filter: blur(10px);
         -webkit-backdrop-filter: blur(10px);
         animation: nxFadeIn .14s ease both;
@@ -315,7 +315,7 @@
       .nxModalCard{
         width:min(560px, 92vw);
         border-radius:22px;
-        background: rgba(20,22,30,.92);
+        background: rgba(20,22,30,.97);
         border:1px solid rgba(255,255,255,.10);
         box-shadow: 0 30px 80px rgba(0,0,0,.55);
         overflow:hidden;
@@ -1289,7 +1289,7 @@
 
         if (!count) {
           if (typeof window.showToast === "function") {
-            window.showToast("No games are currently locked.", "info");
+            window.showToast("No games are currently locked", "info");
           }
           return;
         }

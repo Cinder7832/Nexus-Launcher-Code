@@ -889,7 +889,7 @@
         position:fixed; inset:0; z-index:9999;
         display:grid; place-items:center;
         padding:22px;
-        background: rgba(0,0,0,.55);
+        background: rgba(0,0,0,.78);
         backdrop-filter: blur(10px);
         -webkit-backdrop-filter: blur(10px);
         animation: nxFadeIn .14s ease both;
@@ -897,7 +897,7 @@
       .nxModalCard{
         width:min(560px, 92vw);
         border-radius:22px;
-        background: rgba(20,22,30,.92);
+        background: rgba(20,22,30,.97);
         border:1px solid rgba(255,255,255,.10);
         box-shadow: 0 30px 80px rgba(0,0,0,.55);
         overflow:hidden;
@@ -1275,7 +1275,7 @@
 
       .nxLbOverlay{
         position:fixed; inset:0; z-index:99999;
-        background: rgba(0,0,0,.68);
+        background: rgba(0,0,0,.82);
         backdrop-filter: blur(10px);
         -webkit-backdrop-filter: blur(10px);
         display:grid;
@@ -1290,7 +1290,7 @@
         width: min(1100px, 94vw);
         height: min(680px, 84vh);
         border-radius: 22px;
-        background: rgba(18,20,30,.92);
+        background: rgba(18,20,30,.97);
         border: 1px solid rgba(255,255,255,.10);
         box-shadow: 0 40px 120px rgba(0,0,0,.65);
         overflow: hidden;
@@ -2102,7 +2102,7 @@ box-shadow: 0 14px 34px rgba(255,60,90,.10);
         padding: 8px;
         border-radius: 16px;
         border: 1px solid rgba(255,255,255,.10);
-        background: rgba(20,22,32,0.92); /* slightly more opaque */
+        background: rgba(20,22,32,0.97); /* more opaque for readability */
         box-shadow: 0 32px 80px rgba(0,0,0,.65); /* stronger shadow */
         backdrop-filter: blur(18px); /* stronger blur */
         -webkit-backdrop-filter: blur(18px);

@@ -490,8 +490,8 @@
 .toast{
   padding: 12px 14px;
   border-radius: 14px;
-  background: rgba(255,255,255,.08);
-  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(22,24,34,.88);
+  border: 1px solid rgba(255,255,255,.12);
   color:#fff;
   font-weight: 900;
   transform: translateY(10px);
@@ -506,13 +506,13 @@
 }
 
 .toast.success{
-  border-color: rgba(46,204,113,.35);
-  background: rgba(46,204,113,.12);
+  border-color: rgba(46,204,113,.40);
+  background: rgba(14,40,26,.88);
 }
 
 .toast.error{
-  border-color: rgba(255,60,90,.35);
-  background: rgba(255,60,90,.12);
+  border-color: rgba(255,60,90,.40);
+  background: rgba(50,16,22,.88);
 }
 
 /* =========================

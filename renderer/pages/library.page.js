@@ -99,7 +99,7 @@ function ensureChangelogStyles() {
       position: fixed; inset: 0; z-index: 99998;
       display: grid; place-items: center;
       padding: 22px;
-      background: rgba(0,0,0,.62);
+      background: rgba(0,0,0,.78);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       opacity: 0;
@@ -119,7 +119,7 @@ function ensureChangelogStyles() {
       width: min(980px, 94vw);
       height: min(620px, 84vh);
       border-radius: 24px;
-      background: rgba(18,20,30,.92);
+      background: rgba(18,20,30,.97);
       border: 1px solid rgba(255,255,255,.10);
       box-shadow: 0 40px 120px rgba(0,0,0,.65);
       overflow: hidden;
@@ -965,7 +965,7 @@ function ensureLibraryReorderStyles() {
       min-width: 190px;
       padding: 6px;
       border-radius: 14px;
-      background: rgba(18,20,30,.94);
+      background: rgba(18,20,30,.98);
       border: 1px solid rgba(255,255,255,.10);
       box-shadow: 0 20px 60px rgba(0,0,0,.65);
       backdrop-filter: blur(14px);
@@ -1212,7 +1212,7 @@ function ensureLibMovePosStyles() {
       position: fixed; inset: 0; z-index: 99997;
       display: grid; place-items: center;
       padding: 22px;
-      background: rgba(0,0,0,.62);
+      background: rgba(0,0,0,.78);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       animation: nxMoveFadeIn .16s ease both;
@@ -1220,7 +1220,7 @@ function ensureLibMovePosStyles() {
     .nxMoveCard{
       width: min(520px, 92vw);
       border-radius: 22px;
-      background: rgba(18,20,30,.92);
+      background: rgba(18,20,30,.97);
       border: 1px solid rgba(255,255,255,.10);
       box-shadow: 0 34px 110px rgba(0,0,0,.65);
       overflow: hidden;

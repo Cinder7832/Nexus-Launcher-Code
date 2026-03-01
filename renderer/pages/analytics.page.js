@@ -128,7 +128,7 @@
         padding: 8px;
         border-radius: 16px;
         border: 1px solid rgba(255,255,255,.10);
-        background: rgba(20,22,32,.92);
+        background: rgba(20,22,32,.97);
         box-shadow: 0 26px 80px rgba(0,0,0,.55);
         backdrop-filter: blur(14px);
         opacity: 0;
