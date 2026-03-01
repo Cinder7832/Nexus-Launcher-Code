@@ -496,6 +496,7 @@ window.loadPage = async function (page) {
   await sleep(180);
 
   pageEl.innerHTML = templates[page] || `<h1 class="title">Missing page</h1>`;
+  pageEl.scrollTop = 0;
 
   // ✅ Update sidebar highlight (non-sidebar pages like "details" clear all)
   try {
