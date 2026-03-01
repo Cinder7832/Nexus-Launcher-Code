@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("api", {
   getStore: () => ipcRenderer.invoke("get-store"),
   getInstalled: () => ipcRenderer.invoke("get-installed"),
   getDownloads: () => ipcRenderer.invoke("get-downloads"),
+  getCollections: () => ipcRenderer.invoke("get-collections"),
 
   // Open external links (safe allowlist in main)
   openExternal: (url) => ipcRenderer.invoke("open-external", url),
@@ -59,6 +60,9 @@ contextBridge.exposeInMainWorld("api", {
 
   // Grid
   setGridColumns: (cols) => ipcRenderer.invoke("set-grid-columns", cols),
+
+  // Store view mode
+  setStoreViewMode: (mode) => ipcRenderer.invoke("set-store-view-mode", mode),
 
   // launch mode
   setLaunchMode: (mode) => ipcRenderer.invoke("set-launch-mode", mode),

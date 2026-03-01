@@ -70,6 +70,7 @@ function defaultSettings() {
     launchMode: "maximized", // store | library
     startPage: "store",      
     gridColumns: 4,
+    storeViewMode: "all", // "all" | "collections"
     windowBounds: {
       width: 1400,
       height: 820

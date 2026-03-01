@@ -18,7 +18,7 @@ const { DownloadManager } = require("./backend/downloadManager");
 const settings = require("./backend/settings");
 
 // ✅ updater uses GitHub RAW store.json
-const { fetchRemoteStore, computeUpdates, fetchRemoteChangelog } = require("./backend/updater");
+const { fetchRemoteStore, fetchRemoteCollections, computeUpdates, fetchRemoteChangelog } = require("./backend/updater");
 
 let win;
 let tray = null;
@@ -1226,6 +1226,17 @@ ipcMain.handle("get-store", async () => {
   lastRemoteStore = store;
   return store;
 });
+
+ipcMain.handle("get-collections", async () => {
+  try {
+    const data = await fetchRemoteCollections();
+    return data;
+  } catch {
+    // Fallback: return empty collections if fetch fails
+    return { collections: [] };
+  }
+});
+
 ipcMain.handle("get-installed", () => installer.readInstalled());
 
 ipcMain.handle("refresh-store", async () => {
@@ -1578,6 +1589,12 @@ ipcMain.handle("set-grid-columns", async (_, cols) => {
   const s = settings.writeSettings({ ...cur, gridColumns: safe });
   sendToRenderer("toast", { message: `Grid set to ${safe} columns`, kind: "success" });
   return s;
+});
+
+ipcMain.handle("set-store-view-mode", async (_, mode) => {
+  const safe = mode === "collections" ? "collections" : "all";
+  const cur = settings.readSettings();
+  return settings.writeSettings({ ...cur, storeViewMode: safe });
 });
 
 // --------------------

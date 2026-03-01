@@ -8,6 +8,9 @@
   let gamesById = new Map();
   let btnByGameId = new Map();
 
+  // Collections view mode
+  let nxStoreViewMode = "all"; // "all" | "collections"
+
   function updateStoreButtonUI(gameId) {
     if (window.__currentPage !== "store") return;
     const gid = String(gameId || "");
@@ -180,7 +183,8 @@
         flex: 1 1 auto;
         min-width: 0;
       }
-      .nxStorePage .storeTop > .storeTopLeft > .title{
+      .nxStorePage .storeTop > .storeTopLeft > .title,
+      .nxStorePage .storeTop > .storeTopLeft > .nxViewTabs{
         margin: 0;
       }
 
@@ -598,11 +602,731 @@ async function applyGridFromSettings() {
     document.head.appendChild(s);
   }
 
+  // --------------------------
+  // ✅ Collections view helpers
+  // --------------------------
+  function getGameImages(game) {
+    const raw = game?.images ?? game?.screenshots ?? [];
+    const arr = Array.isArray(raw) ? raw : [raw];
+    return arr.map((x) => String(x || "").trim()).filter(Boolean);
+  }
+
+  function getGameVideos(game) {
+    const raw = game?.videos ?? game?.trailers ?? [];
+    const arr = Array.isArray(raw) ? raw : [raw];
+    return arr.map((x) => String(x || "").trim()).filter(Boolean);
+  }
+
+  function extractYTId(url) {
+    const s = String(url || "");
+    const m1 = s.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+    if (m1) return m1[1];
+    const m2 = s.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
+    if (m2) return m2[1];
+    const m3 = s.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/);
+    if (m3) return m3[1];
+    return null;
+  }
+
+  function getCollectionCardImage(game) {
+    const hero = game?.hero || game?.heroUrl || game?.heroImage || "";
+    if (hero) return toImg(hero);
+    const imgs = getGameImages(game);
+    if (imgs.length) return toImg(imgs[0]);
+    const cover = game?.imageUrl || game?.image || game?.cover || game?.coverUrl || "";
+    return toImg(cover);
+  }
+
+  function formatDateAdded(dateAdded) {
+    if (!dateAdded) return "";
+    try {
+      const d = new Date(dateAdded);
+      if (isNaN(d.getTime())) return "";
+      return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    } catch { return ""; }
+  }
+
+  // --------------------------
+  // ✅ Collections styles
+  // --------------------------
+  const NX_COLLECTIONS_STYLE_ID = "nxCollectionsStyleV1";
+  function ensureCollectionsStyles() {
+    if (document.getElementById(NX_COLLECTIONS_STYLE_ID)) return;
+    const s = document.createElement("style");
+    s.id = NX_COLLECTIONS_STYLE_ID;
+    s.textContent = `
+      /* View mode tabs */
+      .nxViewTabs{
+        display: flex;
+        gap: 4px;
+        background: rgba(255,255,255,.05);
+        border-radius: 16px;
+        padding: 4px;
+        flex: 0 0 auto;
+      }
+      .nxViewTab{
+        padding: 10px 20px;
+        border-radius: 12px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: rgba(255,255,255,.50);
+        cursor: pointer;
+        font-weight: 900;
+        font-size: 14px;
+        letter-spacing: .1px;
+        transition: background .16s ease, color .16s ease, border-color .16s ease;
+        white-space: nowrap;
+      }
+      .nxViewTab:hover:not(.active){
+        color: rgba(255,255,255,.75);
+        background: rgba(255,255,255,.04);
+      }
+      .nxViewTab.active{
+        background: rgba(124,92,255,.20);
+        color: rgba(255,255,255,.95);
+        border-color: rgba(124,92,255,.22);
+      }
+
+      /* Collections layout */
+      .nxCollections{
+        display: flex;
+        flex-direction: column;
+        gap: 40px;
+        padding-top: 16px;
+      }
+      .nxCollRowHeader{
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 18px;
+      }
+      .nxCollRowTitle{
+        font-size: clamp(18px, 2.4vw, 24px);
+        font-weight: 950;
+        letter-spacing: -.3px;
+        color: rgba(255,255,255,.92);
+        margin: 0;
+      }
+      .nxCollRowNav{
+        display: flex;
+        gap: 8px;
+      }
+      .nxCollNavBtn{
+        width: 36px;
+        height: 36px;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,.08);
+        background: rgba(255,255,255,.05);
+        color: rgba(255,255,255,.7);
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+        transition: background .16s, border-color .16s;
+      }
+      .nxCollNavBtn:hover{
+        background: rgba(255,255,255,.10);
+        border-color: rgba(255,255,255,.14);
+      }
+      .nxCollNavBtn:disabled{
+        opacity: .25;
+        cursor: default;
+      }
+      .nxCollNavBtn svg{
+        width: 16px; height: 16px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2.4;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      /* Horizontal scroller */
+      .nxCollScroller{
+        display: flex;
+        gap: 16px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scroll-behavior: smooth;
+        scroll-snap-type: x mandatory;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 4px;
+      }
+      .nxCollScroller::-webkit-scrollbar{
+        display: none;
+      }
+
+      /* Card (portrait style like Epic Games) */
+      .nxCollScroller .gameTile{
+        flex: 0 0 auto;
+        width: clamp(220px, 18vw, 300px);
+        height: clamp(320px, 52vh, 420px);
+        scroll-snap-align: start;
+      }
+
+      /* Developer name inside collection tiles */
+      .nxCollTileDev{
+        font-size: clamp(11px, 1vw, 13px);
+        font-weight: 750;
+        color: rgba(255,255,255,.55);
+        text-shadow: 0 6px 14px rgba(0,0,0,.45);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      /* Video overlay on hover */
+      .nxCollCardVideoWrap{
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+      }
+      .nxCollCardVideoFrame{
+        width: 100%;
+        height: 100%;
+        border: none;
+        object-fit: cover;
+        pointer-events: none;
+      }
+
+      /* Play badge */
+      .nxCollCardPlayBadge{
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        width: 30px;
+        height: 30px;
+        border-radius: 999px;
+        background: rgba(0,0,0,.55);
+        backdrop-filter: blur(6px);
+        display: grid;
+        place-items: center;
+        z-index: 3;
+        opacity: .65;
+        transition: opacity .2s;
+      }
+      .gameTile:hover .nxCollCardPlayBadge{
+        opacity: 1;
+      }
+      .nxCollCardPlayBadge svg{
+        width: 13px; height: 13px;
+        fill: #fff;
+        stroke: none;
+      }
+
+      /* Featured hero spotlight at top */
+      .nxCollSpotlight{
+        position: relative;
+        width: 100%;
+        border-radius: 22px;
+        overflow: hidden;
+        cursor: pointer;
+        min-height: 280px;
+        max-height: 400px;
+        aspect-ratio: 21/9;
+        background: rgba(255,255,255,.03);
+        border: 1px solid rgba(255,255,255,.06);
+        box-shadow: 0 24px 60px rgba(0,0,0,.35);
+        transition:
+          box-shadow .45s cubic-bezier(.2,.9,.2,1),
+          filter .45s ease;
+      }
+      .nxCollSpotlight:hover{
+        box-shadow: 0 34px 90px rgba(0,0,0,.55);
+        filter: brightness(1.03);
+      }
+      .nxCollSpotlightImg{
+        position: absolute;
+        inset: 0;
+        background-size: cover;
+        background-position: center;
+        transition: transform .65s cubic-bezier(.2,.9,.2,1);
+      }
+      .nxCollSpotlight:hover .nxCollSpotlightImg{
+        transform: scale(1.03);
+      }
+      .nxCollSpotlightOverlay{
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+          90deg,
+          rgba(0,0,0,.75) 0%,
+          rgba(0,0,0,.45) 40%,
+          rgba(0,0,0,.10) 100%
+        );
+      }
+      .nxCollSpotlightInfo{
+        position: absolute;
+        left: 32px;
+        bottom: 32px;
+        right: 40%;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        z-index: 2;
+      }
+      .nxCollSpotlightBadge{
+        align-self: flex-start;
+        padding: 6px 12px;
+        border-radius: 8px;
+        background: rgba(255,255,255,.12);
+        border: 1px solid rgba(255,255,255,.14);
+        font-size: 12px;
+        font-weight: 800;
+        color: rgba(255,255,255,.85);
+      }
+      .nxCollSpotlightName{
+        font-size: clamp(22px, 3vw, 32px);
+        font-weight: 950;
+        letter-spacing: -.3px;
+        color: #fff;
+        text-shadow: 0 8px 20px rgba(0,0,0,.5);
+        margin: 0;
+      }
+      .nxCollSpotlightDev{
+        font-size: 14px;
+        font-weight: 750;
+        color: rgba(255,255,255,.60);
+      }
+      .nxCollSpotlightDesc{
+        font-size: 13px;
+        font-weight: 700;
+        color: rgba(255,255,255,.50);
+        line-height: 1.4;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .nxCollSpotlightVideoWrap{
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+      }
+      .nxCollSpotlightVideoWrap iframe{
+        width: 100%;
+        height: 100%;
+        border: none;
+        object-fit: cover;
+        pointer-events: none;
+      }
+
+      /* Spotlight dots navigation */
+      .nxCollSpotlightDots{
+        position: absolute;
+        bottom: 16px;
+        right: 24px;
+        display: flex;
+        gap: 8px;
+        z-index: 3;
+      }
+      .nxCollSpotlightDot{
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        border: 1.5px solid rgba(255,255,255,.5);
+        background: transparent;
+        cursor: pointer;
+        padding: 0;
+        transition: background .16s, border-color .16s;
+      }
+      .nxCollSpotlightDot.active{
+        background: rgba(255,255,255,.9);
+        border-color: rgba(255,255,255,.9);
+      }
+      .nxCollSpotlightDot:hover:not(.active){
+        background: rgba(255,255,255,.35);
+      }
+    `;
+    document.head.appendChild(s);
+  }
+
+  // --------------------------
+  // ✅ Build collections from remote collections.json + auto "Recently Added"
+  // --------------------------
+  function buildCollections(games, remoteCollections) {
+    const collections = [];
+    const gameMap = new Map(games.map((g) => [String(g?.id ?? ""), g]));
+
+    // Remote collections from collections.json (user-configurable)
+    const remote = Array.isArray(remoteCollections) ? remoteCollections : [];
+    for (const rc of remote) {
+      const title = String(rc?.title || "").trim();
+      if (!title) continue;
+      const ids = Array.isArray(rc?.gameIds) ? rc.gameIds : [];
+      const matched = ids
+        .map((id) => gameMap.get(String(id)))
+        .filter(Boolean);
+      if (matched.length > 0) {
+        collections.push({ title, games: matched });
+      }
+    }
+
+    // Auto-generated: "Recently Added"
+    const sorted = [...games].sort((a, b) => {
+      const da = new Date(a?.dateAdded || 0).getTime() || 0;
+      const db = new Date(b?.dateAdded || 0).getTime() || 0;
+      if (da && db) return db - da;
+      if (da) return -1;
+      if (db) return 1;
+      return 0;
+    });
+    const recent = sorted.slice(0, Math.min(12, games.length));
+    if (recent.length > 0) {
+      collections.push({ title: "Recently Added", games: recent });
+    }
+
+    return collections;
+  }
+
+  // --------------------------
+  // ✅ Collections view: render the full collections mode
+  // --------------------------
+  async function renderCollectionsView(page, store, installed) {
+    const all = store.games || [];
+
+    gamesById = new Map(
+      (all || []).map((g) => [String(g?.id ?? ""), g]).filter(([id]) => id)
+    );
+
+    // Fetch remote collections.json
+    let remoteCollections = [];
+    try {
+      const data = await window.api.getCollections?.();
+      remoteCollections = data?.collections || [];
+    } catch {}
+
+    const collections = buildCollections(all, remoteCollections);
+
+    // Pick a spotlight game (first game with a hero image)
+    const spotlightGames = all.filter((g) => {
+      const hero = g?.hero || g?.heroUrl || g?.heroImage || "";
+      return !!hero;
+    }).slice(0, 5);
+
+    page.innerHTML = `
+      <div class="nxStorePage">
+        <div class="storeTop">
+          <div class="storeTopLeft">
+            <div class="nxViewTabs" id="storeViewTabs">
+              <button class="nxViewTab" data-view="all">All Games</button>
+              <button class="nxViewTab active" data-view="collections">Collections</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="nxCollections" id="storeCollections">
+          ${spotlightGames.length > 0 ? `<div id="storeSpotlight"></div>` : ""}
+        </div>
+
+        <div id="storeCollEmpty" class="emptyState" style="display:none;">
+          <div class="emptyTitle">No games available</div>
+          <div class="muted">Check back later for new additions.</div>
+        </div>
+      </div>
+    `;
+
+    const container = document.getElementById("storeCollections");
+    const emptyEl = document.getElementById("storeCollEmpty");
+
+    if (!collections.length || !all.length) {
+      if (emptyEl) emptyEl.style.display = "block";
+      bindViewTabs();
+      return;
+    }
+
+    // Render spotlight
+    if (spotlightGames.length > 0) {
+      const spotMount = document.getElementById("storeSpotlight");
+      if (spotMount) renderSpotlight(spotMount, spotlightGames, installed);
+    }
+
+    // Render collection rows
+    for (const coll of collections) {
+      const rowEl = createCollectionRow(coll, installed);
+      container.appendChild(rowEl);
+    }
+
+    bindViewTabs();
+    bindCollectionScrollers();
+    bindCollectionVideoHover();
+  }
+
+  // Spotlight hero banner (cycles through featured games)
+  function renderSpotlight(mount, games, installed) {
+    let currentIdx = 0;
+    let autoTimer = null;
+
+    function buildSpotlight() {
+      const game = games[currentIdx];
+      if (!game) return;
+
+      const heroImg = getCollectionCardImage(game);
+      const devs = getGameDevelopers(game);
+      const devText = devs.length > 0 ? devs.join(", ") : "";
+      const desc = game?.description || "";
+
+      const videos = getGameVideos(game);
+      const ytId = videos.length > 0 ? extractYTId(videos[0]) : null;
+
+      mount.innerHTML = `
+        <div class="nxCollSpotlight" data-game-id="${game.id}" ${ytId ? `data-yt-id="${ytId}"` : ""}>
+          <div class="nxCollSpotlightImg" style="background-image:url('${heroImg}')"></div>
+          <div class="nxCollSpotlightOverlay"></div>
+          <div class="nxCollSpotlightInfo">
+            <span class="nxCollSpotlightBadge">v${game.version || "0.0.0"}</span>
+            <h2 class="nxCollSpotlightName">${game.name || "Game"}</h2>
+            ${devText ? `<div class="nxCollSpotlightDev">${devText}</div>` : ""}
+            ${desc ? `<div class="nxCollSpotlightDesc">${desc}</div>` : ""}
+          </div>
+          ${games.length > 1 ? `
+            <div class="nxCollSpotlightDots">
+              ${games.map((_, i) => `<button class="nxCollSpotlightDot${i === currentIdx ? " active" : ""}" data-idx="${i}" type="button"></button>`).join("")}
+            </div>
+          ` : ""}
+        </div>
+      `;
+
+      const spotEl = mount.querySelector(".nxCollSpotlight");
+      if (spotEl) {
+        spotEl.addEventListener("click", (e) => {
+          if (e.target.closest(".nxCollSpotlightDot")) return;
+          window.__rememberPageScroll?.("store");
+          window.__restoreScrollForPage = "store";
+          window.__selectedGame = game;
+          window.__previousPage = "store";
+          window.loadPage("details");
+        });
+
+        // Dot navigation
+        spotEl.querySelectorAll(".nxCollSpotlightDot").forEach((dot) => {
+          dot.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const idx = Number(dot.dataset.idx);
+            if (isNaN(idx) || idx === currentIdx) return;
+            currentIdx = idx;
+            buildSpotlight();
+            resetAutoRotate();
+          });
+        });
+
+        // Video autoplay on hover
+        if (ytId) {
+          let videoTimer = null;
+          let videoWrap = null;
+
+          spotEl.addEventListener("mouseenter", () => {
+            videoTimer = setTimeout(() => {
+              const iframe = document.createElement("iframe");
+              iframe.src = `https://www.youtube.com/embed/${ytId}?autoplay=1&mute=1&controls=0&loop=1&playlist=${ytId}&modestbranding=1&showinfo=0&rel=0`;
+              iframe.allow = "autoplay; encrypted-media";
+              iframe.setAttribute("loading", "lazy");
+              videoWrap = document.createElement("div");
+              videoWrap.className = "nxCollSpotlightVideoWrap";
+              videoWrap.appendChild(iframe);
+              spotEl.insertBefore(videoWrap, spotEl.querySelector(".nxCollSpotlightOverlay"));
+            }, 1000);
+          });
+
+          spotEl.addEventListener("mouseleave", () => {
+            clearTimeout(videoTimer);
+            if (videoWrap) { videoWrap.remove(); videoWrap = null; }
+          });
+        }
+      }
+    }
+
+    function resetAutoRotate() {
+      clearInterval(autoTimer);
+      if (games.length > 1) {
+        autoTimer = setInterval(() => {
+          currentIdx = (currentIdx + 1) % games.length;
+          buildSpotlight();
+        }, 7000);
+      }
+    }
+
+    buildSpotlight();
+    resetAutoRotate();
+  }
+
+  function createCollectionRow(coll, installed) {
+    const row = document.createElement("div");
+    row.className = "nxCollRow";
+
+    const header = document.createElement("div");
+    header.className = "nxCollRowHeader";
+    header.innerHTML = `
+      <h2 class="nxCollRowTitle">${coll.title}</h2>
+      <div class="nxCollRowNav">
+        <button class="nxCollNavBtn" data-dir="left" aria-label="Scroll left">
+          <svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>
+        </button>
+        <button class="nxCollNavBtn" data-dir="right" aria-label="Scroll right">
+          <svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+    `;
+    row.appendChild(header);
+
+    const scroller = document.createElement("div");
+    scroller.className = "nxCollScroller";
+
+    for (const game of coll.games) {
+      const card = createCollectionCard(game, installed);
+      scroller.appendChild(card);
+    }
+
+    row.appendChild(scroller);
+    return row;
+  }
+
+  function createCollectionCard(game, installed) {
+    const tile = document.createElement("div");
+    tile.className = "gameTile";
+    tile.dataset.gameId = String(game?.id ?? "");
+
+    const cover = game.imageUrl || game.image || game.cover || game.coverUrl || "";
+    const devs = getGameDevelopers(game);
+    const devText = devs.length > 0 ? devs.join(", ") : "";
+
+    const videos = getGameVideos(game);
+    const ytId = videos.length > 0 ? extractYTId(videos[0]) : null;
+    if (ytId) tile.dataset.ytId = ytId;
+
+    const isInstalled = !!installed?.[game.id];
+    const upd = window.__updatesByGameId?.get(String(game.id)) || null;
+
+    let btnText = "Install";
+    let btnDisabled = false;
+    if (isInstalled && upd) { btnText = "Update"; btnDisabled = false; }
+    else if (isInstalled) { btnText = "Installed"; btnDisabled = true; }
+
+    tile.innerHTML = `
+      <div class="tileImage" style="background-image:url('${toImg(cover)}')"></div>
+      <div class="tileOverlay"></div>
+      ${ytId ? `<div class="nxCollCardPlayBadge"><svg viewBox="0 0 24 24"><polygon points="6,3 20,12 6,21"/></svg></div>` : ""}
+      <div class="tileInfo">
+        <div class="tileBadge">v${game.version || "0.0.0"}</div>
+        <div class="tileName">${game.name || "Game"}</div>
+        ${devText ? `<div class="nxCollTileDev">${devText}</div>` : ""}
+        <button class="ctaBtn" ${btnDisabled ? "disabled" : ""}>
+          ${btnText}
+        </button>
+      </div>
+    `;
+
+    tile.addEventListener("click", (e) => {
+      if (e.target.closest("button")) return;
+      window.__rememberPageScroll?.("store");
+      window.__restoreScrollForPage = "store";
+      window.__selectedGame = game;
+      window.__previousPage = "store";
+      window.loadPage("details");
+    });
+
+    const btn = tile.querySelector("button");
+    if (btn) {
+      btn.onclick = async () => {
+        const isInst = !!installed?.[game.id];
+        const upd2 = window.__updatesByGameId?.get(String(game.id)) || null;
+        btn.disabled = true;
+
+        if (isInst && upd2) {
+          setPhase(game.id, "downloading");
+          btn.textContent = "Downloading...";
+          await window.api.queueUpdate(game.id);
+          window.loadPage("downloads");
+          return;
+        }
+
+        setPhase(game.id, "downloading");
+        btn.textContent = "Downloading...";
+        await window.api.queueInstall(game);
+      };
+    }
+
+    return tile;
+  }
+
+  function bindViewTabs() {
+    const tabs = document.getElementById("storeViewTabs");
+    if (!tabs) return;
+    tabs.addEventListener("click", async (e) => {
+      const tab = e.target.closest(".nxViewTab");
+      if (!tab) return;
+      const view = tab.dataset.view;
+      if (!view || view === nxStoreViewMode) return;
+      nxStoreViewMode = view;
+      try { await window.api.setStoreViewMode?.(view); } catch {}
+      window.renderStore?.();
+    });
+  }
+
+  function bindCollectionScrollers() {
+    document.querySelectorAll(".nxCollRow").forEach((row) => {
+      const scroller = row.querySelector(".nxCollScroller");
+      const leftBtn = row.querySelector('[data-dir="left"]');
+      const rightBtn = row.querySelector('[data-dir="right"]');
+      if (!scroller || !leftBtn || !rightBtn) return;
+
+      const step = () => Math.max(280, Math.floor(scroller.clientWidth * 0.7));
+
+      leftBtn.onclick = () => scroller.scrollBy({ left: -step(), behavior: "smooth" });
+      rightBtn.onclick = () => scroller.scrollBy({ left: step(), behavior: "smooth" });
+
+      function updateNav() {
+        const max = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
+        leftBtn.disabled = scroller.scrollLeft <= 1;
+        rightBtn.disabled = scroller.scrollLeft >= max - 1;
+      }
+
+      scroller.addEventListener("scroll", () => requestAnimationFrame(updateNav), { passive: true });
+      requestAnimationFrame(updateNav);
+    });
+  }
+
+  function bindCollectionVideoHover() {
+    let hoverTimer = null;
+    let currentVideoEl = null;
+
+    document.querySelectorAll(".nxCollScroller .gameTile[data-yt-id]").forEach((card) => {
+      const ytId = card.dataset.ytId;
+      if (!ytId) return;
+
+      card.addEventListener("mouseenter", () => {
+        hoverTimer = setTimeout(() => {
+          const iframe = document.createElement("iframe");
+          iframe.className = "nxCollCardVideoFrame";
+          iframe.src = `https://www.youtube.com/embed/${ytId}?autoplay=1&mute=1&controls=0&loop=1&playlist=${ytId}&modestbranding=1&showinfo=0&rel=0`;
+          iframe.allow = "autoplay; encrypted-media";
+          iframe.setAttribute("loading", "lazy");
+
+          const wrapper = document.createElement("div");
+          wrapper.className = "nxCollCardVideoWrap";
+          wrapper.appendChild(iframe);
+
+          card.appendChild(wrapper);
+          currentVideoEl = wrapper;
+        }, 800);
+      });
+
+      card.addEventListener("mouseleave", () => {
+        clearTimeout(hoverTimer);
+        if (currentVideoEl) {
+          currentVideoEl.remove();
+          currentVideoEl = null;
+        }
+      });
+    });
+  }
+
   window.renderStore = async function () {
     bindEventsOnce();
     ensureSearchBarStyles();
     ensureStoreSearchWidthFix();
     ensureCategoryDropdownStyles();
+    ensureCollectionsStyles();
     await applyGridFromSettings();
 
     const page = document.getElementById("page");
@@ -613,12 +1337,26 @@ async function applyGridFromSettings() {
 
     installedCache = installed;
 
+    // Check view mode preference
+    try {
+      const s = await window.api.getSettings?.();
+      nxStoreViewMode = s?.storeViewMode === "collections" ? "collections" : "all";
+    } catch {}
+
+    if (nxStoreViewMode === "collections") {
+      renderCollectionsView(page, store, installed);
+      return;
+    }
+
     // ✅ Wrapper makes Store-only CSS safe
     page.innerHTML = `
       <div class="nxStorePage">
         <div class="storeTop">
           <div class="storeTopLeft">
-            <div class="title">All Games</div>
+            <div class="nxViewTabs" id="storeViewTabs">
+              <button class="nxViewTab active" data-view="all">All Games</button>
+              <button class="nxViewTab" data-view="collections">Collections</button>
+            </div>
 
             <div class="nxCatWrap" id="storeCatWrap">
               <button class="nxCatBtn" id="storeCatBtn" type="button">
@@ -1046,5 +1784,8 @@ async function applyGridFromSettings() {
     renderDevPills();
     render(all);
     input.addEventListener("input", applyFilter);
+
+    // Bind view mode tabs (All Games / Collections)
+    bindViewTabs();
   };
 })();

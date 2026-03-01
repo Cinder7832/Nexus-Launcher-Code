@@ -5,6 +5,10 @@ const https = require("https");
 const REMOTE_STORE_URL =
   "https://raw.githubusercontent.com/Cinder7832/unity-games/main/store.json";
 
+// ✅ Collections JSON (same repo, next to store.json)
+const REMOTE_COLLECTIONS_URL =
+  "https://raw.githubusercontent.com/Cinder7832/unity-games/main/collections.json";
+
 function fetchJson(url) {
   return new Promise((resolve, reject) => {
     const req = https.get(
@@ -56,6 +60,12 @@ async function fetchRemoteChangelog(changelogUrl) {
   return await fetchJson(url);
 }
 
+async function fetchRemoteCollections() {
+  const url = `${REMOTE_COLLECTIONS_URL}?t=${Date.now()}`;
+  const data = await fetchJson(url);
+  return { collections: Array.isArray(data?.collections) ? data.collections : [] };
+}
+
 // very simple semver-ish compare: "1.2.3"
 function cmpVersion(a, b) {
   const pa = String(a || "0.0.0").split(".").map((n) => parseInt(n, 10) || 0);
@@ -98,6 +108,7 @@ function computeUpdates(remoteStore, installed) {
 
 module.exports = {
   fetchRemoteStore,
+  fetchRemoteCollections,
   computeUpdates,
   fetchRemoteChangelog
 };
