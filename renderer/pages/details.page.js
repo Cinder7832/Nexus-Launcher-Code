@@ -170,6 +170,28 @@
       .filter(Boolean);
   }
 
+  function getVideos(meta) {
+    const raw = meta?.videos ?? meta?.trailers ?? [];
+    return safeArray(raw)
+      .map((x) => String(x || "").trim())
+      .filter(Boolean);
+  }
+
+  function extractYouTubeId(url) {
+    const s = String(url || "");
+    const m1 = s.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+    if (m1) return m1[1];
+    const m2 = s.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
+    if (m2) return m2[1];
+    const m3 = s.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/);
+    if (m3) return m3[1];
+    return null;
+  }
+
+  function getYouTubeThumbnail(videoId) {
+    return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+  }
+
   function getInputSupport(meta, inst) {
     const fromMeta =
       meta?.inputSupport ??
@@ -388,9 +410,17 @@
 
           const st = String(d?.status || "").toLowerCase();
 
-          if (st === "downloading") setPhaseForGame(gid, "downloading");
-          else if (st === "completed") setPhaseForGame(gid, "installing");
-          else if (st === "error" || st === "canceled") setPhaseForGame(gid, "");
+          // A new download starting clears the install-done flag (allows reinstall/update)
+          if (st === "downloading") {
+            window.__nxInstallDoneIds?.delete(gid);
+            setPhaseForGame(gid, "downloading");
+          } else if (st === "completed") {
+            // If install already finished for this game, ignore stale "completed" events
+            if (window.__nxInstallDoneIds?.has(gid)) return;
+            setPhaseForGame(gid, "installing");
+          } else if (st === "error" || st === "canceled") {
+            setPhaseForGame(gid, "");
+          }
 
           updateDetailsPhaseUI(gid);
         });
@@ -401,11 +431,16 @@
           const gid = String(d?.gameId || "");
           if (!gid) return;
 
+          // Mark this game as install-done so stale download events are ignored
+          if (!window.__nxInstallDoneIds) window.__nxInstallDoneIds = new Set();
+          window.__nxInstallDoneIds.add(gid);
+
           setPhaseForGame(gid, "");
           updateDetailsPhaseUI(gid);
 
-          // Refresh installed status/version without rebuilding the whole UI unnecessarily
+          // Only refresh if we're actually on the details page for this game
           try {
+            if (window.__currentPage !== "details") return;
             const root = document.getElementById("page");
             const cur = String(root?.dataset?.nxDetailsGameId || "");
             if (cur && cur === gid) window.renderDetails?.();
@@ -1553,6 +1588,208 @@
     document.body.appendChild(overlay);
 
     render();
+    closeBtn.focus();
+  }
+
+  // -------------------------------------------------
+  // ✅ Video lightbox (YouTube embed)
+  // -------------------------------------------------
+  const VIDEO_LB_STYLE_ID = "nxVideoLightboxStyle";
+  function ensureVideoLightboxStyles() {
+    if (document.getElementById(VIDEO_LB_STYLE_ID)) return;
+
+    const s = document.createElement("style");
+    s.id = VIDEO_LB_STYLE_ID;
+    s.textContent = `
+      .nxVidOverlay{
+        position:fixed; inset:0; z-index:99999;
+        background: rgba(0,0,0,.88);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        display:grid;
+        place-items:center;
+        padding: 22px;
+        opacity: 0;
+        animation: nxLbOverlayIn .18s ease forwards;
+      }
+      .nxVidCard{
+        width: min(1100px, 94vw);
+        border-radius: 22px;
+        background: rgba(18,20,30,.97);
+        border: 1px solid rgba(255,255,255,.10);
+        box-shadow: 0 40px 120px rgba(0,0,0,.65);
+        overflow: hidden;
+        display:flex;
+        flex-direction:column;
+        transform: translateY(10px) scale(.985);
+        opacity: 0;
+        animation: nxLbCardIn .22s cubic-bezier(.2,.9,.2,1) forwards;
+        animation-delay: .03s;
+      }
+      .nxVidOverlay.isClosing{
+        animation: nxLbOverlayOut .16s ease forwards;
+      }
+      .nxVidOverlay.isClosing .nxVidCard{
+        animation: nxLbCardOut .18s cubic-bezier(.2,.9,.2,1) forwards;
+      }
+      .nxVidTop{
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap: 12px;
+        padding: 12px 14px;
+        border-bottom: 1px solid rgba(255,255,255,.06);
+      }
+      .nxVidTitle{
+        color: rgba(255,255,255,.72);
+        font-weight: 850;
+        font-size: 13px;
+        letter-spacing: .2px;
+      }
+      .nxVidClose{
+        border:none;
+        cursor:pointer;
+        border-radius: 14px;
+        padding: 10px 12px;
+        background: rgba(255,255,255,.08);
+        color:#fff;
+        font-weight: 900;
+        transition: transform .12s ease, background .16s ease;
+      }
+      .nxVidClose:hover{ background: rgba(255,255,255,.12); transform: translateY(-1px); }
+      .nxVidClose:active{ transform: translateY(0) scale(.98); }
+      .nxVidStage{
+        position: relative;
+        width: 100%;
+        padding-top: 56.25%;
+        background: #000;
+      }
+      .nxVidStage iframe{
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        border: none;
+      }
+
+      .nxVideoThumb{
+        position: relative;
+        overflow: hidden;
+        transform: translateZ(0);
+        border-radius: 22px;
+        background-size: cover !important;
+        background-position: center !important;
+        background-repeat: no-repeat !important;
+        background-color: rgba(0,0,0,.22);
+        cursor: pointer;
+        transition: transform .16s ease, filter .16s ease, box-shadow .16s ease;
+        will-change: transform;
+        outline: none;
+      }
+      .nxVideoThumb:hover{
+        transform: translateY(-2px) scale(1.02);
+        filter: brightness(1.06);
+        box-shadow: 0 16px 40px rgba(0,0,0,.35);
+      }
+      .nxVideoThumb:active{ transform: translateY(0) scale(.99); }
+      .nxVideoThumb:focus-visible{
+        box-shadow: 0 0 0 3px rgba(124,92,255,.28), 0 16px 40px rgba(0,0,0,.25);
+      }
+      .nxVideoPlayOverlay{
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: rgba(0,0,0,.32);
+        transition: background .16s ease;
+      }
+      .nxVideoThumb:hover .nxVideoPlayOverlay{
+        background: rgba(0,0,0,.18);
+      }
+      .nxVideoPlayIcon{
+        width: 48px;
+        height: 48px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.92);
+        display: grid;
+        place-items: center;
+        box-shadow: 0 8px 24px rgba(0,0,0,.35);
+        transition: transform .16s ease, box-shadow .16s ease;
+      }
+      .nxVideoThumb:hover .nxVideoPlayIcon{
+        transform: scale(1.08);
+        box-shadow: 0 12px 32px rgba(0,0,0,.45);
+      }
+      .nxVideoPlayIcon svg{
+        width: 20px;
+        height: 20px;
+        fill: rgba(0,0,0,.85);
+        margin-left: 2px;
+      }
+    `;
+    document.head.appendChild(s);
+  }
+
+  function openVideoLightbox(youtubeId, title) {
+    ensureVideoLightboxStyles();
+    ensureLightboxStyles();
+
+    if (!youtubeId) return;
+    let closing = false;
+
+    const overlay = document.createElement("div");
+    overlay.className = "nxVidOverlay";
+
+    const card = document.createElement("div");
+    card.className = "nxVidCard";
+
+    const top = document.createElement("div");
+    top.className = "nxVidTop";
+
+    const titleEl = document.createElement("div");
+    titleEl.className = "nxVidTitle";
+    titleEl.textContent = title || "Video";
+
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "nxVidClose";
+    closeBtn.type = "button";
+    closeBtn.textContent = "Close";
+
+    top.appendChild(titleEl);
+    top.appendChild(closeBtn);
+
+    const stage = document.createElement("div");
+    stage.className = "nxVidStage";
+
+    const iframe = document.createElement("iframe");
+    iframe.src = `https://www.youtube.com/embed/${youtubeId}?autoplay=1&rel=0`;
+    iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
+    iframe.allowFullscreen = true;
+    stage.appendChild(iframe);
+
+    card.appendChild(top);
+    card.appendChild(stage);
+    overlay.appendChild(card);
+
+    function close() {
+      if (closing) return;
+      closing = true;
+      document.removeEventListener("keydown", onKey);
+      overlay.classList.add("isClosing");
+      setTimeout(() => overlay.remove(), 200);
+    }
+
+    function onKey(e) {
+      if (e.key === "Escape") close();
+    }
+
+    overlay.addEventListener("click", (e) => {
+      if (!card.contains(e.target)) close();
+    });
+
+    closeBtn.addEventListener("click", close);
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(overlay);
     closeBtn.focus();
   }
 
@@ -3574,6 +3811,7 @@ box-shadow: 0 14px 34px rgba(255,60,90,.10);
       description: meta.description || inst?.description || "",
       hero: meta.heroUrl || meta.hero || meta.imageUrl || meta.image || inst?.image || "",
       images,
+      videos: getVideos(meta),
       category: meta.category || meta.categories || inst?.category || [],
       developers,
       installed: !!inst,
@@ -4099,12 +4337,20 @@ async function updateInstalledSizeUI(game) {
     // If a download is already in progress, reflect it immediately (no need to wait for the next event)
     try {
       const gid = String(selectedId);
+      const alreadyInstalled = !!installed?.[gid];
       const d = (downloads || []).find((x) => String(x?.gameId) === gid);
       if (d) {
         const st = String(d?.status || "").toLowerCase();
-        if (st === "downloading") setPhaseForGame(gid, "downloading");
-        else if (st === "completed") setPhaseForGame(gid, "installing");
-        else if (st === "error" || st === "canceled") setPhaseForGame(gid, "");
+        if (alreadyInstalled) {
+          // Game is already installed — clear any stale phase from old download entries
+          setPhaseForGame(gid, "");
+        } else if (st === "downloading") {
+          setPhaseForGame(gid, "downloading");
+        } else if (st === "completed") {
+          setPhaseForGame(gid, "installing");
+        } else if (st === "error" || st === "canceled") {
+          setPhaseForGame(gid, "");
+        }
       }
     } catch {}
 
@@ -4313,10 +4559,24 @@ async function updateInstalledSizeUI(game) {
 
           <div style="height:18px;"></div>
 
-          <div class="sectionTitle">Images</div>
+          <div class="sectionTitle">Media</div>
           ${
-            game.images.length
-              ? `<div class="shots" id="detailsImages">
+            (game.videos.length || game.images.length)
+              ? `<div class="shots" id="detailsMedia">
+                   ${game.videos
+                     .map((url, i) => {
+                       const vid = extractYouTubeId(url);
+                       if (!vid) return '';
+                       const thumb = getYouTubeThumbnail(vid);
+                       return `<div class="shot nxVideoThumb" role="button" tabindex="0" data-video-idx="${i}" data-yt-id="${vid}" style="background-image:url('${thumb}')">
+                         <div class="nxVideoPlayOverlay">
+                           <div class="nxVideoPlayIcon">
+                             <svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="6,3 20,12 6,21"></polygon></svg>
+                           </div>
+                         </div>
+                       </div>`;
+                     })
+                     .join("")}
                    ${game.images
                      .map((s, i) => {
                        const u = toImg(s);
@@ -4324,7 +4584,7 @@ async function updateInstalledSizeUI(game) {
                      })
                      .join("")}
                  </div>`
-              : `<div class="muted">No images added yet.</div>`
+              : `<div class="muted">No media added yet.</div>`
           }
 
           <div id="nxCommentsMount"></div>
@@ -4404,6 +4664,7 @@ async function updateInstalledSizeUI(game) {
 
     ensureDetailsSpacingStyles();
     ensureLightboxStyles();
+    ensureVideoLightboxStyles();
 
     // ✅ Update download size without flicker (cached + text-only update)
     await updateDownloadSizeUI(game);
@@ -4411,22 +4672,40 @@ async function updateInstalledSizeUI(game) {
     await updateDateAddedUI(game);
     updateControllerIndicator();
 
-    const imgWrap = document.getElementById("detailsImages");
-    if (imgWrap) {
-      imgWrap.addEventListener("click", (e) => {
-        const el = e.target.closest("[data-img-idx]");
-        if (!el) return;
-        const idx = Number(el.dataset.imgIdx || 0);
-        openLightbox(game.images, idx);
+    const mediaWrap = document.getElementById("detailsMedia");
+    if (mediaWrap) {
+      mediaWrap.addEventListener("click", (e) => {
+        const vidEl = e.target.closest("[data-video-idx]");
+        if (vidEl) {
+          const ytId = String(vidEl.dataset.ytId || "");
+          if (ytId) openVideoLightbox(ytId, game.name);
+          return;
+        }
+
+        const imgEl = e.target.closest("[data-img-idx]");
+        if (imgEl) {
+          const idx = Number(imgEl.dataset.imgIdx || 0);
+          openLightbox(game.images, idx);
+        }
       });
 
-      imgWrap.addEventListener("keydown", (e) => {
+      mediaWrap.addEventListener("keydown", (e) => {
         if (e.key !== "Enter" && e.key !== " ") return;
-        const el = e.target.closest("[data-img-idx]");
-        if (!el) return;
-        e.preventDefault();
-        const idx = Number(el.dataset.imgIdx || 0);
-        openLightbox(game.images, idx);
+
+        const vidEl = e.target.closest("[data-video-idx]");
+        if (vidEl) {
+          e.preventDefault();
+          const ytId = String(vidEl.dataset.ytId || "");
+          if (ytId) openVideoLightbox(ytId, game.name);
+          return;
+        }
+
+        const imgEl = e.target.closest("[data-img-idx]");
+        if (imgEl) {
+          e.preventDefault();
+          const idx = Number(imgEl.dataset.imgIdx || 0);
+          openLightbox(game.images, idx);
+        }
       });
     }
 
@@ -4478,6 +4757,7 @@ async function updateInstalledSizeUI(game) {
 
           setPhaseForGame(game.id, "downloading");
           updateDetailsPhaseUI(game.id);
+          window.__nxInstallDoneIds?.delete(game.id);
 
           await window.api.queueInstall(storeGame);
           // Keep disabled — download/install events will drive the label.
@@ -4535,6 +4815,7 @@ const updateBtn = document.getElementById("detailsUpdateBtn");
 
           setPhaseForGame(game.id, "downloading");
           updateDetailsPhaseUI(game.id);
+          window.__nxInstallDoneIds?.delete(game.id);
 
           await window.api.queueUpdate(game.id);
           window.loadPage("downloads");
