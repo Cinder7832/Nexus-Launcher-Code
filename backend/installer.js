@@ -132,6 +132,23 @@ function uninstallGame(gameId) {
   }
 }
 
+// Write a simple INI file that the NSIS uninstaller can read
+// to find the game install root for cleanup during launcher uninstall
+function saveUninstallHint() {
+  try {
+    const s = settings.readSettings();
+    const root = String(s.installRoot || "");
+    if (!root) return;
+    const userData = settings.getUserDataDir();
+    ensureDir(userData);
+    const iniPath = path.join(userData, "uninstall_hint.ini");
+    const content = `[Paths]\r\nInstallRoot=${root}\r\n`;
+    fs.writeFileSync(iniPath, content, "utf-8");
+  } catch {
+    // non-critical — uninstaller will fall back to default path
+  }
+}
+
 module.exports = {
   readInstalled,
   saveInstalled,
@@ -139,5 +156,6 @@ module.exports = {
   uninstallGame,
   getDefaultInstallPath,
   getExePath,
-  getInstallRoot
+  getInstallRoot,
+  saveUninstallHint
 };

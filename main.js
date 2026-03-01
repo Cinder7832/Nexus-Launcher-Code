@@ -1558,6 +1558,7 @@ ipcMain.handle("set-install-root", async (_, dir) => {
   const cur = settings.readSettings();
   const s = settings.writeSettings({ ...cur, installRoot: dir });
   sendToRenderer("toast", { message: `Install folder set to: ${s.installRoot}`, kind: "success" });
+  try { installer.saveUninstallHint(); } catch {}
   return s;
 });
 
@@ -1673,6 +1674,7 @@ ipcMain.handle("migrate-games", async (_, payload) => {
   installer.saveInstalled(installed);
   sendToRenderer("install-finished", { gameId: "__migration__" });
   await refreshUpdates();
+  try { installer.saveUninstallHint(); } catch {}
 
   if (errors.length > 0) {
     sendToRenderer("toast", { message: `Migrated ${moved} game(s). ${errors.length} failed.`, kind: "info" });
@@ -1891,6 +1893,9 @@ app.whenReady().then(() => {
   loadLauncherUpdateState();
   updateLoginItemSettings(); // Apply startup settings on boot
   createWindow();
+
+  // Write uninstall hint so NSIS knows the game install root during launcher uninstall
+  try { installer.saveUninstallHint(); } catch {}
 
   setTimeout(pushNetStatus, 300);
   try {

@@ -2292,6 +2292,91 @@ box-shadow: 0 14px 34px rgba(255,60,90,.10);
         padding: 2px 6px;
         border-radius: 10px;
       }
+
+      /* ✅ Threaded replies (YouTube-style) */
+      .nxThread{
+        display:flex;
+        flex-direction:column;
+      }
+      .nxRepliesToggle{
+        display:inline-flex;
+        align-items:center;
+        gap: 6px;
+        padding: 8px 12px;
+        margin-top: 4px;
+        border: none;
+        background: transparent;
+        color: rgba(124,92,255,.92);
+        font-weight: 900;
+        font-size: 12.5px;
+        cursor: pointer;
+        border-radius: 12px;
+        transition: background .14s ease;
+      }
+      .nxRepliesToggle:hover{
+        background: rgba(124,92,255,.10);
+      }
+      .nxRepliesToggle svg{
+        width: 14px;
+        height: 14px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2.4;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        transition: transform .18s ease;
+      }
+      .nxRepliesToggle.expanded svg{
+        transform: rotate(180deg);
+      }
+      .nxRepliesWrap{
+        margin-left: 24px;
+        padding-left: 16px;
+        border-left: 2px solid rgba(255,255,255,.08);
+        display:flex;
+        flex-direction:column;
+        gap: 10px;
+        margin-top: 8px;
+      }
+      .nxRepliesWrap .nxComment{
+        background: rgba(255,255,255,.02);
+        border-color: rgba(255,255,255,.06);
+      }
+      .nxReplyComposer{
+        margin-top: 8px;
+        display:flex;
+        flex-direction:column;
+        gap: 8px;
+      }
+      .nxReplyComposer textarea{
+        width:100%;
+        min-height: 60px;
+        resize: none;
+        overflow-y: hidden;
+        border-radius: 14px;
+        border: 1px solid rgba(255,255,255,.10);
+        background: rgba(0,0,0,.16);
+        color:#fff;
+        padding: 10px 12px;
+        font-family: inherit;
+        font-size: 13px;
+        line-height: 1.4;
+        outline: none;
+        box-sizing: border-box;
+      }
+      .nxReplyComposer textarea:focus{
+        border-color: rgba(124,92,255,.32);
+        box-shadow: 0 0 0 3px rgba(124,92,255,.18);
+      }
+      .nxReplyComposerRow{
+        display:flex;
+        justify-content:flex-end;
+        gap: 8px;
+      }
+      .nxMention{
+        color: rgba(124,92,255,.92);
+        font-weight: 900;
+      }
     `;
     document.head.appendChild(s);
   }
@@ -2595,7 +2680,7 @@ box-shadow: 0 14px 34px rgba(255,60,90,.10);
     try {
       const base = sb
         .from(COMMENTS_VIEW)
-        .select("id, game_id, user_id, display_name, body, created_at, updated_at, likes_count")
+        .select("id, game_id, user_id, display_name, body, created_at, updated_at, likes_count, parent_id")
         .eq("game_id", String(gameId))
         .limit(80);
 
@@ -2612,7 +2697,7 @@ box-shadow: 0 14px 34px rgba(255,60,90,.10);
       console.warn("[Comments] View missing or failed, falling back to table:", e?.message || e);
       const { data, error } = await sb
         .from(COMMENTS_TABLE)
-        .select("id, game_id, user_id, display_name, body, created_at, updated_at")
+        .select("id, game_id, user_id, display_name, body, created_at, updated_at, parent_id")
         .eq("game_id", String(gameId))
         .order("created_at", { ascending: false })
         .limit(80);
@@ -2647,23 +2732,27 @@ box-shadow: 0 14px 34px rgba(255,60,90,.10);
       updatedAt: c.updated_at,
       displayName: c.display_name || "Anonymous",
       likesCount: Number(c.likes_count || 0),
-      likedByMe: likedSet.has(String(c.id))
+      likedByMe: likedSet.has(String(c.id)),
+      parentId: c.parent_id || null
     }));
   }
 
-  async function postComment(sb, user, gameId, displayName, text) {
+  async function postComment(sb, user, gameId, displayName, text, parentId) {
     const body = String(text || "").trim();
     if (!body) return;
 
     const uid = String(user?.id || "");
     if (!uid) throw new Error("Not signed in");
 
-    const { error } = await sb.from(COMMENTS_TABLE).insert({
+    const row = {
       game_id: String(gameId),
       user_id: uid,
       display_name: String(displayName || "Anonymous"),
       body
-    });
+    };
+    if (parentId) row.parent_id = String(parentId);
+
+    const { error } = await sb.from(COMMENTS_TABLE).insert(row);
 
     if (error) throw error;
   }
@@ -2931,6 +3020,7 @@ box-shadow: 0 14px 34px rgba(255,60,90,.10);
     let sortMode = getSavedSortMode();
     const myId = String(user?.id || "");
     let loadedCommentIdSet = new Set();
+    const expandedThreads = new Set();
 
     function setBusy(on) {
       busy = !!on;
@@ -3060,6 +3150,44 @@ box-shadow: 0 14px 34px rgba(255,60,90,.10);
       }
     }
 
+    function renderCommentHtml(c) {
+      const mine = myId && String(c.userId) === myId;
+      const author = escapeHtml(c.displayName || "Anonymous");
+      const body = escapeHtml(c.body || "");
+      const when = timeAgo(c.createdAt);
+      const edited = c.updatedAt && c.updatedAt !== c.createdAt ? " • edited" : "";
+      const likeCount = Number(c.likesCount || 0);
+      const threadRoot = c.parentId || c.id;
+
+      return `
+        <div class="nxComment" data-cid="${escapeHtml(c.id)}" ${c.parentId ? `data-parent="${escapeHtml(c.parentId)}"` : ""}>
+          <div class="nxCommentHead">
+            <div class="nxCommentAuthor">${author}</div>
+            <div class="nxCommentTime">${escapeHtml(when)}${edited}</div>
+          </div>
+
+          <div class="nxCommentBody" data-role="body">${body}</div>
+
+          <div class="nxCommentActions">
+            <button class="nxMiniBtn nxHeartBtn ${c.likedByMe ? "liked" : ""}" data-act="like" type="button"
+              aria-label="${c.likedByMe ? "Unlike" : "Like"}">
+              <span class="nxHeartIcon"><svg viewBox="0 0 24 24" aria-hidden="true" class="nxHeartSvg">
+<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"></path>
+</svg></span>
+              <span class="nxHeartCount">${likeCount}</span>
+            </button>
+
+            <button class="nxMiniBtn" data-act="reply" data-reply-to="${escapeHtml(String(threadRoot))}" data-reply-name="${author}" type="button">Reply</button>
+
+            ${mine ? `
+              <button class="nxMiniBtn" data-act="edit" type="button">Edit</button>
+              <button class="nxMiniBtn danger" data-act="delete" type="button">Delete</button>
+            ` : ``}
+          </div>
+        </div>
+      `;
+    }
+
     function renderList() {
       if (!listEl) return;
 
@@ -3069,50 +3197,48 @@ box-shadow: 0 14px 34px rgba(255,60,90,.10);
         return;
       }
 
+      const topLevel = cached.filter((c) => !c.parentId);
+      const repliesByParent = new Map();
+      for (const c of cached) {
+        if (c.parentId) {
+          const pid = String(c.parentId);
+          if (!repliesByParent.has(pid)) repliesByParent.set(pid, []);
+          repliesByParent.get(pid).push(c);
+        }
+      }
+      for (const [, arr] of repliesByParent) {
+        arr.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+      }
+
       if (countEl) countEl.textContent = String(cached.length);
 
-      listEl.innerHTML = cached
-        .map((c) => {
-          const mine = myId && String(c.userId) === myId;
-          const author = escapeHtml(c.displayName || "Anonymous");
-          const body = escapeHtml(c.body || "");
-          const when = timeAgo(c.createdAt);
-          const edited = c.updatedAt && c.updatedAt !== c.createdAt ? " • edited" : "";
+      listEl.innerHTML = topLevel.map((c) => {
+        const cid = String(c.id);
+        const replies = repliesByParent.get(cid) || [];
+        const replyCount = replies.length;
+        const isExpanded = expandedThreads.has(cid);
 
-          const likeLabel = c.likedByMe ? "Unlike" : "Like";
-          const likeCount = Number(c.likesCount || 0);
+        let html = `<div class="nxThread" data-thread="${escapeHtml(cid)}">`;
+        html += renderCommentHtml(c);
 
-          return `
-          <div class="nxComment" data-cid="${escapeHtml(c.id)}">
-            <div class="nxCommentHead">
-              <div class="nxCommentAuthor">${author}</div>
-              <div class="nxCommentTime">${escapeHtml(when)}${edited}</div>
-            </div>
+        if (replyCount > 0) {
+          html += `
+            <button class="nxRepliesToggle ${isExpanded ? "expanded" : ""}" data-act="toggleReplies" data-thread-id="${escapeHtml(cid)}" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+              <span>${isExpanded ? "Hide" : "Show"} ${replyCount} ${replyCount === 1 ? "reply" : "replies"}</span>
+            </button>
+          `;
 
-            <div class="nxCommentBody" data-role="body">${body}</div>
+          if (isExpanded) {
+            html += `<div class="nxRepliesWrap">`;
+            html += replies.map((r) => renderCommentHtml(r)).join("");
+            html += `</div>`;
+          }
+        }
 
-            <div class="nxCommentActions">
-              <button class="nxMiniBtn nxHeartBtn ${c.likedByMe ? "liked" : ""}" data-act="like" type="button"
-                aria-label="${c.likedByMe ? "Unlike" : "Like"}">
-                <span class="nxHeartIcon"><svg viewBox="0 0 24 24" aria-hidden="true" class="nxHeartSvg">
-  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"></path>
-</svg></span>
-                <span class="nxHeartCount">${likeCount}</span>
-              </button>
-
-              ${
-                mine
-                  ? `
-                    <button class="nxMiniBtn" data-act="edit" type="button">Edit</button>
-                    <button class="nxMiniBtn danger" data-act="delete" type="button">Delete</button>
-                  `
-                  : ``
-              }
-            </div>
-          </div>
-        `;
-        })
-        .join("");
+        html += `</div>`;
+        return html;
+      }).join("");
     }
 
     async function handlePost() {
@@ -3176,18 +3302,101 @@ box-shadow: 0 14px 34px rgba(255,60,90,.10);
       const btn = e.target.closest("button");
       if (!btn) return;
 
+      const act = btn.dataset.act;
+
+      // ✅ Thread toggle (not inside a comment card)
+      if (act === "toggleReplies") {
+        const threadId = String(btn.dataset.threadId || "");
+        if (!threadId) return;
+        if (expandedThreads.has(threadId)) expandedThreads.delete(threadId);
+        else expandedThreads.add(threadId);
+        renderList();
+        return;
+      }
+
+      // ✅ Reply composer: cancel
+      if (act === "cancelReply") {
+        btn.closest(".nxReplyComposer")?.remove();
+        return;
+      }
+
+      // ✅ Reply composer: post reply
+      if (act === "postReply") {
+        if (busy) return;
+        if (!navigator.onLine) return toast("Offline", "error");
+
+        const composer = btn.closest(".nxReplyComposer");
+        if (!composer) return;
+
+        const parentId = String(composer.dataset.replyParent || "");
+        if (!parentId) return;
+
+        const ta = composer.querySelector("textarea");
+        const text = String(ta?.value || "").trim();
+        if (!text) return;
+
+        setBusy(true);
+        try {
+          await postComment(sb, user, gameId, displayName, text, parentId);
+          composer.remove();
+          expandedThreads.add(parentId);
+          toast("Replied", "success");
+          await reload();
+        } catch (err) {
+          console.error(err);
+          toast("Failed to reply", "error");
+        } finally {
+          setBusy(false);
+        }
+        return;
+      }
+
       const card = e.target.closest("[data-cid]");
       if (!card) return;
 
       const cid = String(card.dataset.cid || "");
       if (!cid) return;
 
-      const act = btn.dataset.act;
-
       const found = cached.find((x) => String(x.id) === cid);
       if (!found) return;
 
       if (busy) return;
+
+      // ✅ Reply: show inline composer
+      if (act === "reply") {
+        listEl.querySelectorAll(".nxReplyComposer").forEach((el) => el.remove());
+
+        const threadRoot = String(btn.dataset.replyTo || cid);
+        const replyToName = String(btn.dataset.replyName || "");
+        const isReplyToReply = !!found.parentId;
+        const prefill = isReplyToReply && replyToName ? `@${replyToName} ` : "";
+
+        const composerHtml = `
+          <div class="nxReplyComposer" data-reply-parent="${escapeHtml(threadRoot)}">
+            <textarea maxlength="500" placeholder="Reply…">${escapeHtml(prefill)}</textarea>
+            <div class="nxReplyComposerRow">
+              <button class="nxMiniBtn" data-act="cancelReply" type="button">Cancel</button>
+              <button class="nxMiniBtn" data-act="postReply" type="button" style="background:rgba(124,92,255,.22);border:1px solid rgba(124,92,255,.26);">Reply</button>
+            </div>
+          </div>
+        `;
+        card.insertAdjacentHTML("afterend", composerHtml);
+
+        const composer = card.nextElementSibling;
+        if (composer?.classList.contains("nxReplyComposer")) {
+          const ta = composer.querySelector("textarea");
+          attachAutoGrowTextarea(ta, 60);
+          ta?.focus?.();
+          if (ta) ta.selectionStart = ta.selectionEnd = ta.value.length;
+          ta?.addEventListener("keydown", (ke) => {
+            if ((ke.ctrlKey || ke.metaKey) && ke.key === "Enter") {
+              ke.preventDefault();
+              composer.querySelector('[data-act="postReply"]')?.click();
+            }
+          });
+        }
+        return;
+      }
 
       // ✅ Like/unlike works for everyone (not just your own comments)
       if (act === "like") {
@@ -3239,7 +3448,6 @@ box-shadow: 0 14px 34px rgba(255,60,90,.10);
         if (!bodyEl) return;
 
         const old = found.body || "";
-        // keep actions row (includes like), but prevent confusion: remove edit/delete buttons only
         const actions = card.querySelector(".nxCommentActions");
         if (actions) {
           const editBtn = actions.querySelector('[data-act="edit"]');
