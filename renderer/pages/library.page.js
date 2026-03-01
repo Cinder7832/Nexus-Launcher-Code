@@ -1446,6 +1446,7 @@ function attachLibraryReorder(gridEl, canReorder) {
   let pressTimer = null;
   let draggingEl = null;
   let placeholder = null;
+  let preDragOrder = [];
 
   let startX = 0, startY = 0;
   let offsetX = 0, offsetY = 0;
@@ -1489,6 +1490,11 @@ function attachLibraryReorder(gridEl, canReorder) {
   function startDrag(tile, clientX, clientY) {
     draggingEl = tile;
 
+    // Save the order before dragging so we can enforce locked positions on drop
+    preDragOrder = getTiles()
+      .map((el) => String(el.dataset.gameId || ""))
+      .filter(Boolean);
+
     const rect = tile.getBoundingClientRect();
     offsetX = clientX - rect.left;
     offsetY = clientY - rect.top;
@@ -1510,6 +1516,36 @@ function attachLibraryReorder(gridEl, canReorder) {
     tile.style.top = `${Math.round(clientY - offsetY)}px`;
 
     setReorderMode(true);
+  }
+
+  // Build the logical game-id order from the grid's current DOM children.
+  // The placeholder stands in for the dragged tile's id.
+  function getCurrentDragOrder() {
+    const draggedId = draggingEl ? String(draggingEl.dataset.gameId || "") : "";
+    const order = [];
+    for (const child of gridEl.children) {
+      if (child === placeholder) {
+        if (draggedId) order.push(draggedId);
+      } else if (child.dataset && child.dataset.gameId) {
+        order.push(String(child.dataset.gameId));
+      }
+    }
+    return order;
+  }
+
+  // Returns true if any locked game ended up at a different index than before the drag.
+  function wouldDisplaceLocked() {
+    const lockedSet = loadLockedGames();
+    if (lockedSet.size === 0) return false;
+
+    const currentOrder = getCurrentDragOrder();
+    for (let i = 0; i < preDragOrder.length; i++) {
+      const id = preDragOrder[i];
+      if (!lockedSet.has(id)) continue;
+      const currentIdx = currentOrder.indexOf(id);
+      if (currentIdx !== i) return true;
+    }
+    return false;
   }
 
   function moveDrag(clientX, clientY) {
@@ -1547,12 +1583,21 @@ function attachLibraryReorder(gridEl, canReorder) {
     const insertAfter =
       clientY > br.top + br.height / 2 || clientX > br.left + br.width / 2;
 
+    // Remember the placeholder's current position so we can revert if needed
+    const prevNext = placeholder.nextSibling;
+    const prevParent = placeholder.parentNode;
+
     if (insertAfter) {
       if (best.nextSibling !== placeholder)
         best.parentNode.insertBefore(placeholder, best.nextSibling);
     } else {
       if (best !== placeholder.nextSibling)
         best.parentNode.insertBefore(placeholder, best);
+    }
+
+    // ✅ If this move would displace a locked tile, revert the placeholder
+    if (wouldDisplaceLocked() && prevParent) {
+      prevParent.insertBefore(placeholder, prevNext);
     }
   }
 
@@ -1579,12 +1624,49 @@ function attachLibraryReorder(gridEl, canReorder) {
     draggingEl.style.zIndex = "";
     draggingEl.style.pointerEvents = "";
 
-    const order = getTiles()
+    let order = getTiles()
       .map((el) => String(el.dataset.gameId || ""))
       .filter(Boolean);
+
+    // ✅ Enforce locked game positions: locked games must stay at their pre-drag indices
+    const lockedSet = loadLockedGames();
+    if (lockedSet.size > 0 && preDragOrder.length > 0) {
+      const lockedPositions = [];
+      for (let i = 0; i < preDragOrder.length; i++) {
+        if (lockedSet.has(preDragOrder[i])) {
+          lockedPositions.push({ id: preDragOrder[i], index: i });
+        }
+      }
+
+      if (lockedPositions.length > 0) {
+        // Remove locked games from the new order
+        const withoutLocked = order.filter((id) => !lockedSet.has(id));
+
+        // Re-insert locked games at their original positions
+        lockedPositions.sort((a, b) => a.index - b.index);
+        for (const { id, index } of lockedPositions) {
+          const insertAt = Math.min(index, withoutLocked.length);
+          withoutLocked.splice(insertAt, 0, id);
+        }
+
+        order = withoutLocked;
+
+        // Re-order DOM tiles to match the corrected order
+        const tileMap = new Map();
+        for (const t of getTiles()) {
+          tileMap.set(String(t.dataset.gameId || ""), t);
+        }
+        for (const id of order) {
+          const t = tileMap.get(id);
+          if (t) gridEl.appendChild(t);
+        }
+      }
+    }
+
     saveLibraryOrder(order);
 
     draggingEl = null;
+    preDragOrder = [];
     gridEl.__nxJustDraggedAt = Date.now();
     setReorderMode(false);
     disableNoSelect();

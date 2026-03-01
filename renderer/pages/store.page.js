@@ -759,6 +759,8 @@ async function applyGridFromSettings() {
         overflow-y: hidden;
         scrollbar-width: none;
         -webkit-overflow-scrolling: touch;
+        padding-top: 10px;
+        margin-top: -10px;
         padding-bottom: 4px;
         will-change: scroll-position;
       }
