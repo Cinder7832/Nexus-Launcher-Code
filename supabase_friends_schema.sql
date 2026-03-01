@@ -93,6 +93,14 @@ create policy "Sender can delete own messages" on messages
 create index if not exists idx_messages_conversation
   on messages (least(sender_id, receiver_id), greatest(sender_id, receiver_id), created_at desc);
 
+-- Indexes for sender/receiver lookups and realtime filter paths
+create index if not exists idx_messages_sender on messages (sender_id, created_at desc);
+create index if not exists idx_messages_receiver on messages (receiver_id, created_at desc);
+
+-- Partial index for fast unread count queries
+create index if not exists idx_messages_unread
+  on messages (receiver_id, is_read) where is_read = false;
+
 -- Index for friendship lookups
 create index if not exists idx_friendships_sender on friendships (sender_id);
 create index if not exists idx_friendships_receiver on friendships (receiver_id);

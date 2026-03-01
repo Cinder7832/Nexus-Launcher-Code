@@ -568,8 +568,17 @@
     if (!item) return;
     const meta = item.querySelector(".nxFrItemMeta");
     if (!meta) return;
-    const badge = meta.querySelector(".nxFrUnreadBadge");
-    if (badge) badge.remove();
+    // Remove old badge first
+    const old = meta.querySelector(".nxFrUnreadBadge");
+    if (old) old.remove();
+    // Add updated badge if there are unread messages
+    const count = unreadCounts[friendId] || 0;
+    if (count > 0) {
+      const badge = document.createElement("span");
+      badge.className = "nxFrUnreadBadge";
+      badge.textContent = count > 99 ? "99+" : String(count);
+      meta.appendChild(badge);
+    }
   }
 
   // ---- Realtime Subscriptions ----
@@ -1052,6 +1061,7 @@
             <div class="nxFrStatus ${playing ? "playing" : ""}">${statusText}</div>
           </div>
           <div class="nxFrItemMeta">
+            ${unread > 0 ? `<span class="nxFrUnreadBadge">${unread > 99 ? "99+" : unread}</span>` : ""}
             <div class="nxFrKebabWrap">
               <button class="nxFrKebab" data-action="kebab" data-friendship-id="${escapeHtml(f.id)}" data-friend-id="${escapeHtml(p.id)}" data-friend-name="${escapeHtml(p.display_name || p.username)}" type="button" title="More options">
                 <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"></circle><circle cx="12" cy="12" r="1.5"></circle><circle cx="12" cy="19" r="1.5"></circle></svg>
