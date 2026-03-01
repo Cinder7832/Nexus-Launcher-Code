@@ -746,11 +746,10 @@ async function applyGridFromSettings() {
         gap: 16px;
         overflow-x: auto;
         overflow-y: hidden;
-        scroll-behavior: smooth;
-        scroll-snap-type: x mandatory;
         scrollbar-width: none;
         -webkit-overflow-scrolling: touch;
         padding-bottom: 4px;
+        will-change: scroll-position;
       }
       .nxCollScroller::-webkit-scrollbar{
         display: none;
@@ -761,7 +760,6 @@ async function applyGridFromSettings() {
         flex: 0 0 auto;
         width: clamp(220px, 18vw, 300px);
         height: clamp(320px, 52vh, 420px);
-        scroll-snap-align: start;
       }
 
       /* Developer name inside collection tiles */
@@ -936,6 +934,22 @@ async function applyGridFromSettings() {
       }
       .nxCollSpotlightDot:hover:not(.active){
         background: rgba(255,255,255,.35);
+      }
+
+      /* View-switch crossfade */
+      @keyframes nxFadeIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes nxFadeOut {
+        from { opacity: 1; transform: translateY(0); }
+        to   { opacity: 0; transform: translateY(8px); }
+      }
+      .nxStorePage{
+        animation: nxFadeIn .28s ease both;
+      }
+      .nxStorePage.nxFadeOut{
+        animation: nxFadeOut .2s ease both;
       }
     `;
     document.head.appendChild(s);
@@ -1265,6 +1279,18 @@ async function applyGridFromSettings() {
       if (!view || view === nxStoreViewMode) return;
       nxStoreViewMode = view;
       try { await window.api.setStoreViewMode?.(view); } catch {}
+
+      // Crossfade: fade out current content, then render new view
+      const current = document.querySelector(".nxStorePage");
+      if (current) {
+        current.classList.add("nxFadeOut");
+        await new Promise((r) => {
+          current.addEventListener("animationend", r, { once: true });
+          // Safety timeout in case animationend doesn't fire
+          setTimeout(r, 250);
+        });
+      }
+
       window.renderStore?.();
     });
   }
