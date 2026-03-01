@@ -11,9 +11,6 @@ contextBridge.exposeInMainWorld("api", {
   // Open external links (safe allowlist in main)
   openExternal: (url) => ipcRenderer.invoke("open-external", url),
 
-  // Open YouTube video in a child BrowserWindow
-  openYouTubeVideo: (youtubeId, title) => ipcRenderer.invoke("open-youtube-video", youtubeId, title),
-
   // Refresh
   refreshStore: () => ipcRenderer.invoke("refresh-store"),
 

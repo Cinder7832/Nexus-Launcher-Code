@@ -578,7 +578,7 @@
   function renderSetup(wrap) {
     wrap.innerHTML = `
       <div class="nxFrSetup">
-        <h3>👋 Set up your profile</h3>
+        <h3>Set up your profile</h3>
         <p>Choose a username to start using Friends. Your friends will find you using your unique friend code.</p>
         <div class="nxFrSetupRow">
           <input type="text" id="nxFrUsernameInput" placeholder="Pick a username (3-20 chars)" maxlength="20" spellcheck="false" autocomplete="off" />
@@ -631,7 +631,7 @@
     if (!friendsList.length) {
       html += `
         <div class="nxFrEmpty">
-          <div class="emptyIcon">👥</div>
+          <div class="emptyIcon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></div>
           No friends yet. Share your friend code or add someone!
         </div>
       `;
@@ -723,7 +723,7 @@
     if (!pendingIncoming.length && !pendingSent.length) {
       html += `
         <div class="nxFrEmpty">
-          <div class="emptyIcon">📬</div>
+          <div class="emptyIcon"><svg viewBox="0 0 24 24"><path d="M22 12h-6l-2 3H10l-2-3H2"></path><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg></div>
           No pending requests
         </div>
       `;
@@ -738,7 +738,7 @@
     if (!conversations.length) {
       html += `
         <div class="nxFrEmpty">
-          <div class="emptyIcon">💬</div>
+          <div class="emptyIcon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></div>
           Add friends to start messaging
         </div>
       `;
@@ -842,7 +842,7 @@
     if (!container) return;
 
     if (!chatMessages.length) {
-      container.innerHTML = `<div class="nxFrEmpty" style="padding:20px;">No messages yet. Say hi! 👋</div>`;
+      container.innerHTML = `<div class="nxFrEmpty" style="padding:20px;">No messages yet. Say hi!</div>`;
       return;
     }
 
