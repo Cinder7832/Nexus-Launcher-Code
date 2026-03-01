@@ -47,7 +47,7 @@
     if (!isMine) return "";
     const isTemp = String(msg.id).startsWith("temp-");
     if (isTemp) return `<span class="nxFrMsgCheck"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"></path></svg></span>`;
-    if (msg.is_read) return `<span class="nxFrMsgCheck read"><svg viewBox="0 0 24 24"><path d="M18 6L7 17l-5-5"></path><path d="M22 6L11 17"></path></svg></span>`;
+    if (msg.is_read) return `<span class="nxFrMsgCheck read"><svg viewBox="0 0 24 24"><path d="M17 6L6 17l-5-5"></path><path d="M23 6L12 17"></path></svg></span>`;
     return `<span class="nxFrMsgCheck"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"></path></svg></span>`;
   }
 
@@ -1620,6 +1620,16 @@
   // Also listen for the main-process quit signal (fires before beforeunload)
   window.api?.onBeforeQuit?.(() => {
     goOfflineSync();
+  });
+
+  // ✅ Go offline when minimized to tray, come back online when restored
+  window.api?.onHiddenToTray?.(() => {
+    goOfflineSync();
+    stopPresenceHeartbeat();
+  });
+  window.api?.onRestoredFromTray?.(async () => {
+    try { await updatePresence(null, null); } catch {}
+    startPresenceHeartbeat();
   });
 
 })();

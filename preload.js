@@ -99,5 +99,7 @@ contextBridge.exposeInMainWorld("api", {
   setAnnouncementsSeen: (seen) => ipcRenderer.invoke("set-announcements-seen", seen),
 
   // ✅ App lifecycle
-  onBeforeQuit: (cb) => ipcRenderer.on("app-before-quit", () => cb())
+  onBeforeQuit: (cb) => ipcRenderer.on("app-before-quit", () => cb()),
+  onHiddenToTray: (cb) => ipcRenderer.on("app-hidden-to-tray", () => cb()),
+  onRestoredFromTray: (cb) => ipcRenderer.on("app-restored-from-tray", () => cb())
 });

@@ -849,6 +849,14 @@ function createWindow() {
     }
     return true;
   });
+
+  // ✅ Notify renderer when hidden to tray / restored so friends presence goes offline
+  win.on('hide', () => {
+    sendToRenderer('app-hidden-to-tray');
+  });
+  win.on('show', () => {
+    sendToRenderer('app-restored-from-tray');
+  });
   
   createTray();
 }
