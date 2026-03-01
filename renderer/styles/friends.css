@@ -1,485 +1,507 @@
-/* ============================================================
-   Nexus Launcher – Friends System Styles
+﻿/* ============================================================
+   Nexus Launcher - Friends System Styles (WhatsApp-inspired)
    ============================================================ */
 
-/* ---- Layout ---- */
-.nxFriends{
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  min-height: 100%;
+/* ---- Keyframes ---- */
+@keyframes nxFrFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes nxFrSlideLeft {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes nxFrScaleIn {
+  from { opacity: 0; transform: scale(.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes nxFrMsgPop {
+  from { opacity: 0; transform: translateY(10px) scale(.95); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes nxFrPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(124,92,255,.35); }
+  50%      { box-shadow: 0 0 0 6px rgba(124,92,255,0); }
 }
 
-/* ---- Profile Setup Banner ---- */
-.nxFrSetup{
-  background: rgba(124,92,255,.10);
-  border: 1px solid rgba(124,92,255,.18);
+/* ---- Main Split Layout ---- */
+.nxFriends {
+  display: flex;
+  height: 100%;
+  min-height: 0;
   border-radius: 20px;
-  padding: 22px 24px;
-  margin-bottom: 16px;
+  overflow: hidden;
+  background: rgba(12, 14, 22, .65);
+  border: 1px solid rgba(255,255,255,.06);
+  animation: nxFrScaleIn .35s cubic-bezier(.22,.9,.36,1) both;
+}
+
+/* ---- Left Sidebar Panel ---- */
+.nxFrSidebar {
+  width: 340px;
+  min-width: 280px;
+  max-width: 380px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-}
-.nxFrSetup h3{
-  margin: 0;
-  font-size: 16px;
-  font-weight: 950;
-  letter-spacing: .2px;
-}
-.nxFrSetup p{
-  margin: 0;
-  color: rgba(255,255,255,.65);
-  font-size: 13.5px;
-  font-weight: 700;
-  line-height: 1.4;
-}
-.nxFrSetupRow{
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-.nxFrSetupRow input{
-  flex: 1;
-  min-width: 0;
-  padding: 11px 14px;
-  border-radius: 14px;
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.06);
-  color: #fff;
-  font-size: 14px;
-  font-weight: 700;
-  outline: none;
-  transition: border-color .16s ease, background .16s ease;
-}
-.nxFrSetupRow input:focus{
-  border-color: rgba(124,92,255,.45);
-  background: rgba(255,255,255,.08);
-}
-.nxFrSetupRow input::placeholder{
-  color: rgba(255,255,255,.35);
+  border-right: 1px solid rgba(255,255,255,.06);
+  background: rgba(16, 18, 28, .55);
+  flex-shrink: 0;
 }
 
-/* ---- Tabs ---- */
-.nxFrTabs{
-  display: flex;
-  gap: 6px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-.nxFrTab{
-  border: 1px solid rgba(255,255,255,.08);
-  background: rgba(255,255,255,.04);
-  color: rgba(255,255,255,.72);
-  border-radius: 14px;
-  padding: 10px 18px;
-  font-size: 13.5px;
-  font-weight: 850;
-  cursor: pointer;
-  position: relative;
-  transition:
-    background .16s ease,
-    border-color .16s ease,
-    color .16s ease,
-    transform .12s ease;
-}
-.nxFrTab:hover{
-  background: rgba(255,255,255,.06);
-  border-color: rgba(255,255,255,.12);
-  transform: translateY(-1px);
-}
-.nxFrTab.active{
-  background: rgba(124,92,255,.22);
-  border-color: rgba(124,92,255,.30);
-  color: #fff;
-  box-shadow: 0 12px 30px rgba(124,92,255,.10);
-}
-.nxFrTabBadge{
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: rgba(255,60,90,.85);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 900;
-  margin-left: 8px;
-  vertical-align: middle;
-}
-
-/* ---- Friend Code Card ---- */
-.nxFrCodeCard{
-  background: rgba(255,255,255,.04);
-  border: 1px solid rgba(255,255,255,.06);
-  border-radius: 18px;
-  padding: 16px 20px;
-  margin-bottom: 16px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-.nxFrCodeLabel{
-  color: rgba(255,255,255,.55);
-  font-size: 12.5px;
-  font-weight: 800;
-}
-.nxFrCode{
-  font-size: 20px;
-  font-weight: 950;
-  letter-spacing: 2px;
-  color: rgba(124,92,255,.95);
-  font-family: 'Courier New', Courier, monospace;
-  user-select: all;
-}
-.nxFrCopyBtn{
-  margin-left: auto;
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.06);
-  color: rgba(255,255,255,.80);
-  border-radius: 12px;
-  padding: 8px 14px;
-  font-size: 12.5px;
-  font-weight: 800;
-  cursor: pointer;
-  transition: background .16s ease, transform .12s ease;
-}
-.nxFrCopyBtn:hover{
-  background: rgba(255,255,255,.10);
-  transform: translateY(-1px);
-}
-.nxFrCopyBtn:active{
-  transform: translateY(0) scale(.98);
-}
-
-/* ---- Add Friend Row ---- */
-.nxFrAddRow{
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 16px;
-}
-.nxFrAddRow input{
-  flex: 1;
-  min-width: 0;
-  padding: 11px 14px;
-  border-radius: 14px;
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.06);
-  color: #fff;
-  font-size: 14px;
-  font-weight: 700;
-  outline: none;
-  transition: border-color .16s ease, background .16s ease;
-}
-.nxFrAddRow input:focus{
-  border-color: rgba(124,92,255,.45);
-  background: rgba(255,255,255,.08);
-}
-.nxFrAddRow input::placeholder{
-  color: rgba(255,255,255,.35);
-}
-
-/* ---- Friend List ---- */
-.nxFrList{
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.nxFrItem{
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 16px;
-  border-radius: 18px;
-  background: rgba(255,255,255,.04);
-  border: 1px solid rgba(255,255,255,.06);
-  transition:
-    background .16s ease,
-    border-color .16s ease,
-    transform .12s ease,
-    box-shadow .22s ease;
-}
-.nxFrItem:hover{
-  background: rgba(255,255,255,.06);
-  border-color: rgba(255,255,255,.10);
-  box-shadow: 0 14px 36px rgba(0,0,0,.18);
-  transform: translateY(-1px);
-}
-
-/* ---- Avatar ---- */
-.nxFrAvatar{
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, rgba(124,92,255,.35), rgba(90,59,255,.25));
-  border: 1px solid rgba(124,92,255,.25);
-  display: grid;
-  place-items: center;
-  font-size: 18px;
-  font-weight: 950;
-  color: rgba(255,255,255,.90);
-  flex: 0 0 auto;
-  position: relative;
-}
-.nxFrOnlineDot{
-  position: absolute;
-  bottom: -2px;
-  right: -2px;
-  width: 13px;
-  height: 13px;
-  border-radius: 999px;
-  border: 2.5px solid rgba(18,20,30,.95);
-}
-.nxFrOnlineDot.online{
-  background: #2ecc71;
-  box-shadow: 0 0 0 3px rgba(46,204,113,.15);
-}
-.nxFrOnlineDot.offline{
-  background: rgba(255,255,255,.25);
-}
-
-/* ---- Friend Info ---- */
-.nxFrInfo{
-  flex: 1;
-  min-width: 0;
-}
-.nxFrName{
-  font-size: 14.5px;
-  font-weight: 900;
-  color: #fff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.nxFrStatus{
-  margin-top: 3px;
-  font-size: 12.5px;
-  font-weight: 750;
-  color: rgba(255,255,255,.50);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.nxFrStatus.playing{
-  color: rgba(46,204,113,.90);
-}
-
-/* ---- Friend Actions ---- */
-.nxFrActions{
-  display: flex;
-  gap: 8px;
-  flex: 0 0 auto;
-}
-
-/* ---- Shared Buttons ---- */
-.nxFrBtn{
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.06);
-  color: rgba(255,255,255,.82);
-  border-radius: 12px;
-  padding: 9px 14px;
-  font-size: 12.5px;
-  font-weight: 850;
-  cursor: pointer;
-  transition:
-    background .16s ease,
-    border-color .16s ease,
-    transform .12s ease,
-    filter .16s ease;
-}
-.nxFrBtn:hover{
-  background: rgba(255,255,255,.10);
-  border-color: rgba(255,255,255,.14);
-  transform: translateY(-1px);
-}
-.nxFrBtn:active{
-  transform: translateY(0) scale(.97);
-}
-.nxFrBtn.primary{
-  background: rgba(124,92,255,.25);
-  border-color: rgba(124,92,255,.22);
-  color: #fff;
-}
-.nxFrBtn.primary:hover{
-  background: rgba(124,92,255,.32);
-  border-color: rgba(124,92,255,.30);
-}
-.nxFrBtn.danger{
-  background: rgba(255,60,90,.15);
-  border-color: rgba(255,60,90,.18);
-  color: rgba(255,100,120,.95);
-}
-.nxFrBtn.danger:hover{
-  background: rgba(255,60,90,.22);
-}
-
-/* ---- Empty State ---- */
-.nxFrEmpty{
-  text-align: center;
-  padding: 40px 20px;
-  color: rgba(255,255,255,.45);
-  font-weight: 750;
-  font-size: 14px;
-}
-.nxFrEmpty .emptyIcon{
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto 14px auto;
-}
-.nxFrEmpty .emptyIcon svg{
-  width: 40px;
-  height: 40px;
-  stroke: rgba(255,255,255,.30);
-  fill: none;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-/* ---- Chat / Messages ---- */
-.nxFrChat{
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  height: min(520px, 60vh);
-  border-radius: 20px;
-  background: rgba(255,255,255,.03);
-  border: 1px solid rgba(255,255,255,.06);
-  overflow: hidden;
-}
-.nxFrChatHeader{
+/* ---- Sidebar Header ---- */
+.nxFrSidebarHeader {
+  padding: 16px 16px 12px;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 14px 18px;
-  border-bottom: 1px solid rgba(255,255,255,.06);
-  background: rgba(255,255,255,.03);
+  border-bottom: 1px solid rgba(255,255,255,.05);
+  background: rgba(20, 22, 34, .6);
 }
-.nxFrChatBackBtn{
-  border: none;
-  background: rgba(255,255,255,.06);
-  color: rgba(255,255,255,.82);
-  border-radius: 10px;
-  padding: 7px 12px;
-  font-weight: 900;
-  font-size: 13px;
-  cursor: pointer;
-  transition: background .16s ease;
+.nxFrMyAvatar {
+  width: 42px; height: 42px; border-radius: 50%;
+  background: linear-gradient(135deg, rgba(124,92,255,.45), rgba(90,59,255,.30));
+  border: 2px solid rgba(124,92,255,.30);
+  display: grid; place-items: center;
+  font-size: 17px; font-weight: 950; color: rgba(255,255,255,.92);
+  flex-shrink: 0;
+  transition: transform .2s cubic-bezier(.22,.9,.36,1), box-shadow .2s ease;
 }
-.nxFrChatBackBtn:hover{
-  background: rgba(255,255,255,.10);
+.nxFrMyAvatar:hover { transform: scale(1.06); box-shadow: 0 0 20px rgba(124,92,255,.25); }
+.nxFrMyInfo { flex: 1; min-width: 0; }
+.nxFrMyName {
+  font-size: 14.5px; font-weight: 900; color: #fff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.nxFrChatName{
-  font-size: 14.5px;
-  font-weight: 900;
-  color: #fff;
+.nxFrMyCode {
+  font-size: 11.5px; font-weight: 750;
+  color: rgba(124,92,255,.85);
+  font-family: 'Courier New', Courier, monospace;
+  letter-spacing: .8px; margin-top: 1px; cursor: pointer;
+  transition: color .15s ease;
 }
-.nxFrChatMessages{
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.nxFrMyCode:hover { color: rgba(124,92,255,1); }
+.nxFrHeaderActions { display: flex; gap: 4px; flex-shrink: 0; }
+.nxFrHeaderBtn {
+  width: 34px; height: 34px; border-radius: 50%; border: none;
+  background: rgba(255,255,255,.05); color: rgba(255,255,255,.6);
+  cursor: pointer; display: grid; place-items: center;
+  transition: background .18s ease, color .18s ease, transform .15s ease;
 }
-.nxFrMsg{
-  max-width: 75%;
-  padding: 10px 14px;
-  border-radius: 16px;
-  font-size: 13.5px;
-  font-weight: 700;
-  line-height: 1.4;
-  word-break: break-word;
-}
-.nxFrMsg.sent{
-  align-self: flex-end;
-  background: rgba(124,92,255,.28);
-  border: 1px solid rgba(124,92,255,.22);
-  color: #fff;
-}
-.nxFrMsg.received{
-  align-self: flex-start;
-  background: rgba(255,255,255,.06);
-  border: 1px solid rgba(255,255,255,.08);
-  color: rgba(255,255,255,.88);
-}
-.nxFrMsgTime{
-  font-size: 11px;
-  font-weight: 700;
-  color: rgba(255,255,255,.35);
-  margin-top: 4px;
-}
-.nxFrMsg.sent .nxFrMsgTime{
-  text-align: right;
-}
-.nxFrChatInput{
-  display: flex;
-  gap: 10px;
-  padding: 12px 16px;
-  border-top: 1px solid rgba(255,255,255,.06);
-  background: rgba(255,255,255,.03);
-}
-.nxFrChatInput input{
-  flex: 1;
-  min-width: 0;
-  padding: 11px 14px;
-  border-radius: 14px;
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.06);
-  color: #fff;
-  font-size: 13.5px;
-  font-weight: 700;
-  outline: none;
-  transition: border-color .16s ease;
-}
-.nxFrChatInput input:focus{
-  border-color: rgba(124,92,255,.45);
-}
-.nxFrChatInput input::placeholder{
-  color: rgba(255,255,255,.30);
-}
-.nxFrSendBtn{
-  border: none;
-  background: rgba(124,92,255,.28);
-  border-radius: 14px;
-  padding: 10px 18px;
-  color: #fff;
-  font-weight: 900;
-  font-size: 13px;
-  cursor: pointer;
-  transition: background .16s ease, transform .12s ease;
-}
-.nxFrSendBtn:hover{
-  background: rgba(124,92,255,.38);
-  transform: translateY(-1px);
-}
-.nxFrSendBtn:active{
-  transform: translateY(0) scale(.97);
-}
-.nxFrSendBtn:disabled{
-  opacity: .45;
-  cursor: not-allowed;
+.nxFrHeaderBtn:hover { background: rgba(255,255,255,.10); color: rgba(255,255,255,.9); transform: scale(1.08); }
+.nxFrHeaderBtn:active { transform: scale(.95); }
+.nxFrHeaderBtn svg {
+  width: 16px; height: 16px; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round; fill: none;
 }
 
-/* ---- Unread badge on sidebar ---- */
-.nxFrSidebarBadge{
-  display: none;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: rgba(255,60,90,.85);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 900;
-  align-items: center;
-  justify-content: center;
-  margin-left: auto;
+/* ---- Search Bar ---- */
+.nxFrSearchBar { padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,.04); }
+.nxFrSearchWrap {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.06);
+  border-radius: 12px; padding: 0 12px;
+  transition: border-color .2s ease, background .2s ease, box-shadow .25s ease;
 }
-.nxFrSidebarBadge.visible{
-  display: inline-flex;
+.nxFrSearchWrap:focus-within {
+  border-color: rgba(124,92,255,.40); background: rgba(255,255,255,.07);
+  box-shadow: 0 0 0 3px rgba(124,92,255,.08);
+}
+.nxFrSearchWrap svg {
+  width: 15px; height: 15px; stroke: rgba(255,255,255,.35);
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  fill: none; flex-shrink: 0; transition: stroke .2s ease;
+}
+.nxFrSearchWrap:focus-within svg { stroke: rgba(124,92,255,.70); }
+.nxFrSearchWrap input {
+  flex: 1; min-width: 0; border: none; background: none;
+  color: #fff; font-size: 13px; font-weight: 700; padding: 10px 0; outline: none;
+}
+.nxFrSearchWrap input::placeholder { color: rgba(255,255,255,.30); }
+.nxFrSearchWrap .nxFrAddBtn {
+  border: none; background: rgba(124,92,255,.25); color: #fff;
+  border-radius: 8px; padding: 6px 12px; font-size: 11.5px; font-weight: 850;
+  cursor: pointer; flex-shrink: 0;
+  transition: background .18s ease, transform .12s ease;
+}
+.nxFrSearchWrap .nxFrAddBtn:hover { background: rgba(124,92,255,.35); transform: scale(1.03); }
+.nxFrSearchWrap .nxFrAddBtn:active { transform: scale(.97); }
+
+/* ---- Tabs ---- */
+.nxFrTabs { display: flex; gap: 6px; padding: 10px 14px 8px; flex-wrap: nowrap; overflow-x: auto; }
+.nxFrTabs::-webkit-scrollbar { display: none; }
+.nxFrTab {
+  border: none; background: rgba(255,255,255,.05); color: rgba(255,255,255,.55);
+  border-radius: 20px; padding: 7px 16px; font-size: 12.5px; font-weight: 850;
+  cursor: pointer; white-space: nowrap; position: relative;
+  transition: background .22s cubic-bezier(.22,.9,.36,1), color .18s ease, transform .15s ease, box-shadow .22s ease;
+}
+.nxFrTab:hover { background: rgba(255,255,255,.08); color: rgba(255,255,255,.75); }
+.nxFrTab.active { background: rgba(124,92,255,.22); color: #fff; box-shadow: 0 4px 16px rgba(124,92,255,.12); }
+.nxFrTabBadge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 17px; height: 17px; padding: 0 5px; border-radius: 999px;
+  background: rgba(255,60,90,.85); color: #fff; font-size: 10.5px; font-weight: 900;
+  margin-left: 6px; vertical-align: middle;
+  animation: nxFrScaleIn .3s cubic-bezier(.22,.9,.36,1) both;
+}
+
+/* ---- Friend List ---- */
+.nxFrList { flex: 1; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
+.nxFrList::-webkit-scrollbar { width: 5px; }
+.nxFrList::-webkit-scrollbar-track { background: transparent; }
+.nxFrList::-webkit-scrollbar-thumb { background: rgba(255,255,255,.08); border-radius: 10px; }
+.nxFrList::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.14); }
+
+.nxFrItem {
+  display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+  cursor: pointer; position: relative;
+  transition: background .18s ease, transform .12s cubic-bezier(.22,.9,.36,1);
+  animation: nxFrFadeIn .3s cubic-bezier(.22,.9,.36,1) both;
+}
+.nxFrItem:hover { background: rgba(255,255,255,.04); }
+.nxFrItem:active { transform: scale(.99); }
+.nxFrItem.active { background: rgba(124,92,255,.10); }
+.nxFrItem::after {
+  content: ''; position: absolute; bottom: 0; left: 72px; right: 16px;
+  height: 1px; background: rgba(255,255,255,.04);
+}
+.nxFrItem:last-child::after { display: none; }
+.nxFrItem:nth-child(1)  { animation-delay: 0s; }
+.nxFrItem:nth-child(2)  { animation-delay: .03s; }
+.nxFrItem:nth-child(3)  { animation-delay: .06s; }
+.nxFrItem:nth-child(4)  { animation-delay: .09s; }
+.nxFrItem:nth-child(5)  { animation-delay: .12s; }
+.nxFrItem:nth-child(6)  { animation-delay: .15s; }
+.nxFrItem:nth-child(7)  { animation-delay: .18s; }
+.nxFrItem:nth-child(8)  { animation-delay: .21s; }
+.nxFrItem:nth-child(9)  { animation-delay: .24s; }
+.nxFrItem:nth-child(10) { animation-delay: .27s; }
+
+/* ---- Avatar ---- */
+.nxFrAvatar {
+  width: 48px; height: 48px; border-radius: 50%;
+  background: linear-gradient(135deg, rgba(124,92,255,.35), rgba(90,59,255,.22));
+  border: 2px solid rgba(124,92,255,.18);
+  display: grid; place-items: center;
+  font-size: 18px; font-weight: 950; color: rgba(255,255,255,.90);
+  flex-shrink: 0; position: relative;
+  transition: transform .2s cubic-bezier(.22,.9,.36,1), border-color .2s ease;
+}
+.nxFrItem:hover .nxFrAvatar { border-color: rgba(124,92,255,.30); }
+.nxFrOnlineDot {
+  position: absolute; bottom: 0; right: 0; width: 13px; height: 13px;
+  border-radius: 999px; border: 2.5px solid rgba(16,18,28,.95);
+  transition: background .2s ease, box-shadow .3s ease;
+}
+.nxFrOnlineDot.online { background: #2ecc71; box-shadow: 0 0 0 2px rgba(46,204,113,.12); }
+.nxFrOnlineDot.offline { background: rgba(255,255,255,.22); }
+
+/* ---- Friend Info ---- */
+.nxFrInfo { flex: 1; min-width: 0; }
+.nxFrName {
+  font-size: 14px; font-weight: 900; color: #fff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2;
+}
+.nxFrStatus {
+  margin-top: 2px; font-size: 12.5px; font-weight: 700;
+  color: rgba(255,255,255,.42);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.nxFrStatus.playing { color: rgba(46,204,113,.85); }
+
+/* ---- Item Meta ---- */
+.nxFrItemMeta { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
+.nxFrItemTime { font-size: 11px; font-weight: 700; color: rgba(255,255,255,.30); }
+.nxFrItemTime.unread { color: rgba(124,92,255,.85); }
+.nxFrUnreadBadge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
+  background: rgba(124,92,255,.85); color: #fff; font-size: 11px; font-weight: 900;
+  animation: nxFrScaleIn .3s cubic-bezier(.22,.9,.36,1) both;
+}
+
+/* ---- Actions ---- */
+.nxFrActions { display: flex; gap: 6px; flex-shrink: 0; }
+.nxFrBtn {
+  border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.05);
+  color: rgba(255,255,255,.78); border-radius: 10px; padding: 7px 12px;
+  font-size: 12px; font-weight: 850; cursor: pointer;
+  transition: background .18s ease, border-color .18s ease, transform .12s ease, color .15s ease;
+}
+.nxFrBtn:hover { background: rgba(255,255,255,.10); border-color: rgba(255,255,255,.12); transform: translateY(-1px); }
+.nxFrBtn:active { transform: translateY(0) scale(.97); }
+.nxFrBtn.primary { background: rgba(124,92,255,.22); border-color: rgba(124,92,255,.18); color: #fff; }
+.nxFrBtn.primary:hover { background: rgba(124,92,255,.30); border-color: rgba(124,92,255,.28); }
+.nxFrBtn.danger { background: rgba(255,60,90,.12); border-color: rgba(255,60,90,.14); color: rgba(255,100,120,.90); }
+.nxFrBtn.danger:hover { background: rgba(255,60,90,.20); }
+
+/* ---- Section Labels ---- */
+.nxFrSectionLabel {
+  font-size: 12px; font-weight: 850; color: rgba(124,92,255,.70);
+  padding: 14px 16px 6px; text-transform: uppercase; letter-spacing: .6px;
+}
+
+/* ---- Right Panel ---- */
+.nxFrRight {
+  flex: 1; min-width: 0; display: flex; flex-direction: column;
+  background: rgba(10,12,20,.40); position: relative;
+}
+.nxFrRightEmpty {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 16px;
+  animation: nxFrFadeIn .4s cubic-bezier(.22,.9,.36,1) both;
+}
+.nxFrRightEmptyIcon {
+  width: 80px; height: 80px; border-radius: 50%;
+  background: rgba(124,92,255,.08); border: 1px solid rgba(124,92,255,.12);
+  display: grid; place-items: center;
+  animation: nxFrPulse 2.5s ease-in-out infinite;
+}
+.nxFrRightEmptyIcon svg {
+  width: 36px; height: 36px; stroke: rgba(124,92,255,.55);
+  stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; fill: none;
+}
+.nxFrRightEmptyTitle { font-size: 18px; font-weight: 900; color: rgba(255,255,255,.70); }
+.nxFrRightEmptySub {
+  font-size: 13px; font-weight: 700; color: rgba(255,255,255,.35);
+  text-align: center; max-width: 260px; line-height: 1.5;
+}
+
+/* ---- Chat Header ---- */
+.nxFrChatHeader {
+  display: flex; align-items: center; gap: 12px; padding: 14px 20px;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+  background: rgba(20,22,34,.60);
+  animation: nxFrSlideLeft .3s cubic-bezier(.22,.9,.36,1) both;
+}
+.nxFrChatBackBtn {
+  width: 34px; height: 34px; border-radius: 50%; border: none;
+  background: rgba(255,255,255,.05); color: rgba(255,255,255,.7);
+  cursor: pointer; display: grid; place-items: center; flex-shrink: 0;
+  transition: background .18s ease, color .18s ease, transform .15s ease;
+}
+.nxFrChatBackBtn:hover { background: rgba(255,255,255,.10); color: #fff; transform: scale(1.08); }
+.nxFrChatBackBtn:active { transform: scale(.92); }
+.nxFrChatBackBtn svg {
+  width: 18px; height: 18px; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round; fill: none;
+}
+.nxFrChatAvatar {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: linear-gradient(135deg, rgba(124,92,255,.35), rgba(90,59,255,.22));
+  border: 2px solid rgba(124,92,255,.18);
+  display: grid; place-items: center;
+  font-size: 16px; font-weight: 950; color: rgba(255,255,255,.90); flex-shrink: 0;
+}
+.nxFrChatHeaderInfo { flex: 1; min-width: 0; }
+.nxFrChatName {
+  font-size: 14.5px; font-weight: 900; color: #fff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.nxFrChatStatus { font-size: 12px; font-weight: 700; color: rgba(255,255,255,.40); margin-top: 1px; }
+.nxFrChatStatus.online { color: rgba(46,204,113,.80); }
+
+/* ---- Chat Messages ---- */
+.nxFrChatMessages {
+  flex: 1; overflow-y: auto; padding: 16px 20px;
+  display: flex; flex-direction: column; gap: 4px; scrollbar-gutter: stable;
+}
+.nxFrChatMessages::-webkit-scrollbar { width: 5px; }
+.nxFrChatMessages::-webkit-scrollbar-track { background: transparent; }
+.nxFrChatMessages::-webkit-scrollbar-thumb { background: rgba(255,255,255,.07); border-radius: 10px; }
+.nxFrChatMessages::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.12); }
+
+/* ---- Message Bubbles ---- */
+.nxFrMsg {
+  max-width: 70%; padding: 9px 14px; border-radius: 12px;
+  font-size: 13.5px; font-weight: 700; line-height: 1.45;
+  word-break: break-word; position: relative;
+  animation: nxFrMsgPop .28s cubic-bezier(.22,.9,.36,1) both;
+}
+.nxFrMsg.sent {
+  align-self: flex-end; background: rgba(124,92,255,.28); color: #fff;
+  border-bottom-right-radius: 4px; margin-left: 40px;
+}
+.nxFrMsg.received {
+  align-self: flex-start; background: rgba(255,255,255,.07); color: rgba(255,255,255,.88);
+  border-bottom-left-radius: 4px; margin-right: 40px;
+}
+.nxFrMsg.sent + .nxFrMsg.sent { margin-top: -2px; border-top-right-radius: 4px; }
+.nxFrMsg.received + .nxFrMsg.received { margin-top: -2px; border-top-left-radius: 4px; }
+.nxFrMsgTime {
+  font-size: 10.5px; font-weight: 700; color: rgba(255,255,255,.30);
+  margin-top: 3px; display: flex; align-items: center; gap: 4px;
+}
+.nxFrMsg.sent .nxFrMsgTime { justify-content: flex-end; }
+
+/* ---- Chat Input ---- */
+.nxFrChatInput {
+  display: flex; gap: 10px; padding: 12px 16px;
+  border-top: 1px solid rgba(255,255,255,.05);
+  background: rgba(20,22,34,.50); align-items: center;
+  animation: nxFrFadeIn .3s cubic-bezier(.22,.9,.36,1) .1s both;
+}
+
+/* ---- Typing Indicator ---- */
+.nxFrTypingIndicator {
+  display: none; align-items: center; gap: 8px;
+  padding: 0 20px 2px 20px;
+  min-height: 0; overflow: hidden;
+  transition: min-height .18s ease, padding .18s ease, opacity .18s ease;
+  opacity: 0;
+}
+.nxFrTypingIndicator.visible {
+  display: flex; min-height: 22px; opacity: 1;
+}
+.nxFrTypingText {
+  font-size: 12px; font-weight: 750;
+  color: rgba(255,255,255,.45);
+}
+.nxFrTypingDots {
+  display: inline-flex; align-items: center; gap: 3px;
+}
+.nxFrTypingDots span {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: rgba(124,92,255,.60);
+  animation: nxFrTypingBounce .9s ease-in-out infinite;
+}
+.nxFrTypingDots span:nth-child(2) { animation-delay: .15s; }
+.nxFrTypingDots span:nth-child(3) { animation-delay: .3s; }
+@keyframes nxFrTypingBounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: .4; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+.nxFrChatInput input {
+  flex: 1; min-width: 0; padding: 11px 16px; border-radius: 24px;
+  border: 1px solid rgba(255,255,255,.07); background: rgba(255,255,255,.05);
+  color: #fff; font-size: 13.5px; font-weight: 700; outline: none;
+  transition: border-color .2s ease, background .2s ease, box-shadow .25s ease;
+}
+.nxFrChatInput input:focus {
+  border-color: rgba(124,92,255,.35); background: rgba(255,255,255,.07);
+  box-shadow: 0 0 0 3px rgba(124,92,255,.06);
+}
+.nxFrChatInput input::placeholder { color: rgba(255,255,255,.28); }
+.nxFrSendBtn {
+  width: 42px; height: 42px; border: none; border-radius: 50%;
+  background: rgba(124,92,255,.30); color: #fff; cursor: pointer;
+  display: grid; place-items: center; flex-shrink: 0;
+  transition: background .18s ease, transform .15s ease, box-shadow .22s ease;
+}
+.nxFrSendBtn:hover { background: rgba(124,92,255,.42); transform: scale(1.06); box-shadow: 0 4px 16px rgba(124,92,255,.18); }
+.nxFrSendBtn:active { transform: scale(.93); }
+.nxFrSendBtn:disabled { opacity: .35; cursor: not-allowed; transform: none; box-shadow: none; }
+.nxFrSendBtn svg {
+  width: 18px; height: 18px; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round; fill: none;
+}
+
+/* ---- Profile Setup ---- */
+.nxFrSetup {
+  background: rgba(124,92,255,.08); border: 1px solid rgba(124,92,255,.14);
+  border-radius: 20px; padding: 28px; margin: auto; max-width: 420px;
+  display: flex; flex-direction: column; gap: 16px;
+  animation: nxFrScaleIn .4s cubic-bezier(.22,.9,.36,1) both;
+}
+.nxFrSetup h3 { margin: 0; font-size: 18px; font-weight: 950; color: #fff; }
+.nxFrSetup p { margin: 0; color: rgba(255,255,255,.55); font-size: 13.5px; font-weight: 700; line-height: 1.5; }
+.nxFrSetupRow { display: flex; gap: 10px; align-items: center; }
+.nxFrSetupRow input {
+  flex: 1; min-width: 0; padding: 11px 16px; border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.05);
+  color: #fff; font-size: 14px; font-weight: 700; outline: none;
+  transition: border-color .2s ease, background .2s ease, box-shadow .25s ease;
+}
+.nxFrSetupRow input:focus {
+  border-color: rgba(124,92,255,.40); background: rgba(255,255,255,.07);
+  box-shadow: 0 0 0 3px rgba(124,92,255,.08);
+}
+.nxFrSetupRow input::placeholder { color: rgba(255,255,255,.30); }
+
+/* ---- Profile Editor ---- */
+.nxFrProfileEditor {
+  display: flex; flex-direction: column; gap: 8px; padding: 12px 16px;
+  background: rgba(124,92,255,.06); border-bottom: 1px solid rgba(255,255,255,.05);
+  animation: nxFrFadeIn .25s cubic-bezier(.22,.9,.36,1) both;
+}
+.nxFrProfileEditorRow { display: flex; gap: 8px; align-items: center; }
+.nxFrProfileEditorRow input {
+  flex: 1; min-width: 0; padding: 9px 14px; border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.06);
+  color: #fff; font-size: 13.5px; font-weight: 700; outline: none;
+  transition: border-color .2s ease;
+}
+.nxFrProfileEditorRow input:focus { border-color: rgba(124,92,255,.40); }
+
+/* ---- Empty State ---- */
+.nxFrEmpty {
+  text-align: center; padding: 40px 20px; color: rgba(255,255,255,.38);
+  font-weight: 750; font-size: 13.5px;
+  animation: nxFrFadeIn .35s cubic-bezier(.22,.9,.36,1) both;
+}
+.nxFrEmpty .emptyIcon { display: flex; align-items: center; justify-content: center; margin: 0 auto 14px auto; }
+.nxFrEmpty .emptyIcon svg {
+  width: 38px; height: 38px; stroke: rgba(255,255,255,.22); fill: none;
+  stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* ---- Add Row ---- */
+.nxFrAddRow {
+  display: flex; gap: 8px; align-items: center; padding: 10px 14px;
+  border-bottom: 1px solid rgba(255,255,255,.04);
+}
+.nxFrAddRow input {
+  flex: 1; min-width: 0; padding: 9px 14px; border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.05);
+  color: #fff; font-size: 13px; font-weight: 700; outline: none;
+  transition: border-color .2s ease, background .2s ease, box-shadow .25s ease;
+}
+.nxFrAddRow input:focus {
+  border-color: rgba(124,92,255,.40); background: rgba(255,255,255,.07);
+  box-shadow: 0 0 0 3px rgba(124,92,255,.06);
+}
+.nxFrAddRow input::placeholder { color: rgba(255,255,255,.28); }
+
+/* ---- Date Sep ---- */
+.nxFrDateSep { text-align: center; padding: 10px 0 6px; }
+.nxFrDateSep span {
+  display: inline-block; background: rgba(255,255,255,.06); color: rgba(255,255,255,.40);
+  font-size: 11px; font-weight: 800; padding: 4px 12px; border-radius: 8px;
+}
+
+/* ---- Sidebar Badge ---- */
+.nxFrSidebarBadge {
+  display: none; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
+  background: rgba(255,60,90,.85); color: #fff; font-size: 11px; font-weight: 900;
+  align-items: center; justify-content: center; margin-left: auto;
+}
+.nxFrSidebarBadge.visible { display: inline-flex; }
+
+/* ---- Legacy ---- */
+.nxFrCodeCard {
+  background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.05);
+  border-radius: 14px; padding: 14px 16px; margin: 10px 14px;
+  display: flex; align-items: center; gap: 12px;
+  animation: nxFrFadeIn .3s cubic-bezier(.22,.9,.36,1) both;
+}
+.nxFrCodeLabel { color: rgba(255,255,255,.45); font-size: 11.5px; font-weight: 800; }
+.nxFrCode {
+  font-size: 16px; font-weight: 950; letter-spacing: 1.5px;
+  color: rgba(124,92,255,.90); font-family: 'Courier New', Courier, monospace; user-select: all;
+}
+.nxFrCopyBtn {
+  margin-left: auto; border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.05); color: rgba(255,255,255,.70);
+  border-radius: 10px; padding: 7px 12px; font-size: 12px; font-weight: 800;
+  cursor: pointer; transition: background .18s ease, transform .12s ease;
+}
+.nxFrCopyBtn:hover { background: rgba(255,255,255,.10); transform: translateY(-1px); }
+.nxFrCopyBtn:active { transform: translateY(0) scale(.97); }
+
+/* ---- Responsive ---- */
+@media (max-width: 720px) {
+  .nxFrSidebar { width: 100%; max-width: none; border-right: none; }
+  .nxFrRight { display: none; }
+  .nxFriends.chatOpen .nxFrSidebar { display: none; }
+  .nxFriends.chatOpen .nxFrRight { display: flex; }
 }

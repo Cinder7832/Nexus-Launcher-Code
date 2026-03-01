@@ -2,16 +2,20 @@
 (function () {
   // ---- State ----
   let myProfile = null;
-  let currentTab = "friends"; // friends | requests | messages
+  let currentTab = "friends"; // friends | requests
   let friendsList = [];       // accepted friendships with profile data
   let pendingIncoming = [];   // incoming pending requests
   let pendingSent = [];       // outgoing pending requests
-  let conversations = [];     // friend profiles for message tab
-  let activeChatFriend = null; // friend profile we're chatting with
+  let activeChatFriend = null;
   let chatMessages = [];
   let realtimeSubs = [];
   let presenceInterval = null;
   let unreadCounts = {};      // friendId -> count
+  let typingChannel = null;   // Supabase broadcast channel for typing indicators
+  let friendIsTyping = false; // whether the active chat friend is currently typing
+  let friendTypingTimer = null;
+  let myTypingTimer = null;
+  let lastTypingSent = 0;
 
   // ---- Helpers ----
   function sb() { return window.sb; }
@@ -238,8 +242,6 @@
       if (!a.friend.is_online && b.friend.is_online) return 1;
       return String(a.friend.display_name || "").localeCompare(String(b.friend.display_name || ""));
     });
-
-    conversations = friendsList.map(f => f.friend);
   }
 
   // ---- Unread Message Counts ----
@@ -403,6 +405,49 @@
     return { ok: true };
   }
 
+  // ---- In-place DOM update for friend sidebar items (avoids nuking chat input) ----
+  function updateFriendItemInPlace(profile) {
+    const item = document.querySelector(`.nxFrItem[data-friend-id="${profile.id}"]`);
+    if (!item) return;
+    const online = !!profile.is_online;
+    const playing = online && profile.current_game;
+    const dot = item.querySelector(".nxFrOnlineDot");
+    if (dot) {
+      dot.classList.toggle("online", online);
+      dot.classList.toggle("offline", !online);
+    }
+    const statusEl = item.querySelector(".nxFrStatus");
+    if (statusEl) {
+      let st = "Offline";
+      if (playing) st = "Playing " + escapeHtml(profile.current_game);
+      else if (online) st = "Online";
+      else if (profile.last_seen) st = "Last seen " + timeAgo(profile.last_seen);
+      statusEl.textContent = st;
+      statusEl.classList.toggle("playing", !!playing);
+    }
+    const nameEl = item.querySelector(".nxFrName");
+    if (nameEl) nameEl.textContent = profile.display_name || profile.username || "";
+  }
+
+  function updateFriendUnreadBadge(friendId) {
+    const item = document.querySelector(`.nxFrItem[data-friend-id="${friendId}"]`);
+    if (!item) return;
+    const meta = item.querySelector(".nxFrItemMeta");
+    if (!meta) return;
+    const count = unreadCounts[friendId] || 0;
+    let badge = meta.querySelector(".nxFrUnreadBadge");
+    if (count > 0) {
+      if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "nxFrUnreadBadge";
+        meta.insertBefore(badge, meta.firstChild);
+      }
+      badge.textContent = String(count);
+    } else if (badge) {
+      badge.remove();
+    }
+  }
+
   // ---- Realtime Subscriptions ----
   function setupRealtime() {
     cleanupRealtime();
@@ -454,8 +499,10 @@
             // Increment unread
             unreadCounts[msg.sender_id] = (unreadCounts[msg.sender_id] || 0) + 1;
             updateSidebarBadge();
+            // Update unread badge on the friend's sidebar item in-place
+            updateFriendUnreadBadge(msg.sender_id);
           }
-          if (window.__currentPage === "friends" && currentTab === "messages" && !activeChatFriend) {
+          if (window.__currentPage === "friends" && !activeChatFriend) {
             renderContent();
           }
         }
@@ -463,6 +510,9 @@
       .subscribe();
 
     // Listen for friend profile changes (online status, game activity)
+    // Build a set of friend IDs so we only react to relevant profile changes
+    const friendIds = new Set(friendsList.map(f => f.friend.id));
+
     const profileSub = client
       .channel("profiles-changes")
       .on("postgres_changes", {
@@ -472,13 +522,37 @@
       }, async (payload) => {
         const updated = payload?.new;
         if (!updated) return;
+        // Only process updates for our friends
+        if (!friendIds.has(updated.id)) return;
         // Update local friend data
+        let changed = false;
         for (const f of friendsList) {
           if (f.friend.id === updated.id) {
             Object.assign(f.friend, updated);
+            changed = true;
           }
         }
-        if (window.__currentPage === "friends") renderContent();
+        // Also update activeChatFriend header without nuking the chat input
+        if (activeChatFriend && activeChatFriend.id === updated.id) {
+          Object.assign(activeChatFriend, updated);
+          // Only update the header, not the entire page
+          const statusEl = document.querySelector(".nxFrChatStatus");
+          const nameEl = document.querySelector(".nxFrChatName");
+          if (statusEl) {
+            const online = !!updated.is_online;
+            let st = "Offline";
+            if (online && updated.current_game) st = "Playing " + escapeHtml(updated.current_game);
+            else if (online) st = "Online";
+            else if (updated.last_seen) st = "last seen " + timeAgo(updated.last_seen);
+            statusEl.textContent = st;
+            statusEl.classList.toggle("online", online);
+          }
+          if (nameEl) nameEl.textContent = updated.display_name || updated.username || "";
+          // Update sidebar item in-place
+          updateFriendItemInPlace(updated);
+          return;
+        }
+        if (changed && window.__currentPage === "friends") renderContent();
       })
       .subscribe();
 
@@ -491,6 +565,75 @@
       try { client?.removeChannel(sub); } catch {}
     }
     realtimeSubs = [];
+  }
+
+  // ---- Typing Indicator (Supabase Broadcast) ----
+  function setupTypingChannel(friendId) {
+    cleanupTypingChannel();
+    const client = sb();
+    if (!client || !myId() || !friendId) return;
+
+    // Create a deterministic channel name for this pair
+    const ids = [myId(), friendId].sort();
+    const channelName = `typing:${ids[0]}:${ids[1]}`;
+
+    friendIsTyping = false;
+    clearTimeout(friendTypingTimer);
+
+    typingChannel = client.channel(channelName);
+    typingChannel.on("broadcast", { event: "typing" }, (payload) => {
+      const senderId = payload?.payload?.userId;
+      if (!senderId || senderId === myId()) return;
+      if (senderId !== activeChatFriend?.id) return;
+
+      friendIsTyping = true;
+      updateTypingIndicatorUI();
+
+      clearTimeout(friendTypingTimer);
+      friendTypingTimer = setTimeout(() => {
+        friendIsTyping = false;
+        updateTypingIndicatorUI();
+      }, 3000);
+    });
+
+    typingChannel.subscribe();
+  }
+
+  function cleanupTypingChannel() {
+    const client = sb();
+    if (typingChannel) {
+      try { client?.removeChannel(typingChannel); } catch {}
+      typingChannel = null;
+    }
+    friendIsTyping = false;
+    clearTimeout(friendTypingTimer);
+    clearTimeout(myTypingTimer);
+    lastTypingSent = 0;
+  }
+
+  function broadcastTyping() {
+    if (!typingChannel || !activeChatFriend) return;
+    const now = Date.now();
+    // Throttle: only send once per 2s
+    if (now - lastTypingSent < 2000) return;
+    lastTypingSent = now;
+    typingChannel.send({
+      type: "broadcast",
+      event: "typing",
+      payload: { userId: myId() }
+    });
+  }
+
+  function updateTypingIndicatorUI() {
+    const el = document.getElementById("nxFrTypingIndicator");
+    if (!el) return;
+    if (friendIsTyping && activeChatFriend) {
+      const name = activeChatFriend.display_name || activeChatFriend.username || "Friend";
+      el.innerHTML = `<span class="nxFrTypingDots"><span></span><span></span><span></span></span> <span class="nxFrTypingText">${escapeHtml(name)} is typing</span>`;
+      el.classList.add("visible");
+    } else {
+      el.classList.remove("visible");
+    }
   }
 
   // ---- Game Activity Listener ----
@@ -526,53 +669,93 @@
       return;
     }
 
-    let html = "";
+    const requestCount = pendingIncoming.length;
+    const msgUnread = totalUnread();
+    const displayName = escapeHtml(myProfile.display_name || myProfile.username || "—");
+    const friendCode = escapeHtml(myProfile.friend_code || "—");
 
-    // Profile card with username + friend code
-    html += `
-      <div class="nxFrCodeCard" style="flex-wrap:wrap;">
-        <div style="flex:1; min-width:0;">
-          <div class="nxFrCodeLabel">Your Username</div>
-          <div style="font-size:16px; font-weight:950; color:#fff; margin-top:2px;">${escapeHtml(myProfile.display_name || myProfile.username || "—")}</div>
+    // Build left sidebar
+    let leftHtml = `
+      <div class="nxFrSidebar">
+        <!-- Header -->
+        <div class="nxFrSidebarHeader">
+          <div class="nxFrMyAvatar">${avatarLetter(myProfile.display_name || myProfile.username)}</div>
+          <div class="nxFrMyInfo">
+            <div class="nxFrMyName">${displayName}</div>
+            <div class="nxFrMyCode" id="nxFrCopyCode" title="Click to copy">${friendCode}</div>
+          </div>
+          <div class="nxFrHeaderActions">
+            <button class="nxFrHeaderBtn" id="nxFrChangeUsername" type="button" title="Edit profile">
+              <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+            </button>
+          </div>
         </div>
-        <button class="nxFrCopyBtn" id="nxFrChangeUsername" type="button">Change</button>
-      </div>
-      <div class="nxFrCodeCard">
-        <div>
-          <div class="nxFrCodeLabel">Your Friend Code</div>
-          <div class="nxFrCode">${escapeHtml(myProfile.friend_code || "—")}</div>
+
+        <!-- Profile editor placeholder -->
+        <div id="nxFrProfileEditorSlot"></div>
+
+        <!-- Search / Add friend -->
+        <div class="nxFrSearchBar">
+          <div class="nxFrSearchWrap">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.35-4.35"></path></svg>
+            <input type="text" id="nxFrAddInput" placeholder="Add friend by code..." maxlength="20" spellcheck="false" autocomplete="off" />
+            <button class="nxFrAddBtn" id="nxFrAddBtn" type="button">Add</button>
+          </div>
         </div>
-        <button class="nxFrCopyBtn" id="nxFrCopyCode" type="button">Copy</button>
+
+        <!-- Tabs -->
+        <div class="nxFrTabs">
+          <button class="nxFrTab ${currentTab === "friends" ? "active" : ""}" data-tab="friends">Friends${msgUnread > 0 ? `<span class="nxFrTabBadge">${msgUnread}</span>` : ""}</button>
+          <button class="nxFrTab ${currentTab === "requests" ? "active" : ""}" data-tab="requests">Requests${requestCount > 0 ? `<span class="nxFrTabBadge">${requestCount}</span>` : ""}</button>
+        </div>
+
+        <!-- List content -->
+        <div class="nxFrList" id="nxFrListContent">
+    `;
+
+    if (currentTab === "friends") {
+      leftHtml += renderFriendsTab();
+    } else if (currentTab === "requests") {
+      leftHtml += renderRequestsTab();
+    }
+
+    leftHtml += `
+        </div>
       </div>
     `;
 
-    // Tabs
-    const requestCount = pendingIncoming.length;
-    const msgUnread = totalUnread();
-    html += `<div class="nxFrTabs">`;
-    html += `<button class="nxFrTab ${currentTab === "friends" ? "active" : ""}" data-tab="friends">Friends (${friendsList.length})</button>`;
-    html += `<button class="nxFrTab ${currentTab === "requests" ? "active" : ""}" data-tab="requests">Requests${requestCount > 0 ? `<span class="nxFrTabBadge">${requestCount}</span>` : ""}</button>`;
-    html += `<button class="nxFrTab ${currentTab === "messages" ? "active" : ""}" data-tab="messages">Messages${msgUnread > 0 ? `<span class="nxFrTabBadge">${msgUnread}</span>` : ""}</button>`;
-    html += `</div>`;
+    // Build right panel
+    let rightHtml = `<div class="nxFrRight" id="nxFrRightPanel">`;
+    if (activeChatFriend) {
+      rightHtml += renderChatPanel();
+    } else {
+      rightHtml += `
+        <div class="nxFrRightEmpty">
+          <div class="nxFrRightEmptyIcon">
+            <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+          </div>
+          <div class="nxFrRightEmptyTitle">Nexus Messenger</div>
+          <div class="nxFrRightEmptySub">Select a friend to start chatting, or add someone with their friend code.</div>
+        </div>
+      `;
+    }
+    rightHtml += `</div>`;
 
-    if (currentTab === "friends") {
-      html += renderFriendsTab();
-    } else if (currentTab === "requests") {
-      html += renderRequestsTab();
-    } else if (currentTab === "messages") {
-      if (activeChatFriend) {
-        // Will render chat separately
-        wrap.innerHTML = html;
-        bindTabEvents(wrap);
-        renderChatView(wrap);
-        return;
-      }
-      html += renderMessagesTab();
+    wrap.classList.toggle("chatOpen", !!activeChatFriend);
+    wrap.innerHTML = leftHtml + rightHtml;
+
+    bindAllEvents(wrap);
+
+    // If chat is open, load messages
+    if (activeChatFriend) {
+      loadChatMessages();
     }
 
-    wrap.innerHTML = html;
-    bindTabEvents(wrap);
-    bindContentEvents(wrap);
+    // Highlight active chat friend in sidebar
+    if (activeChatFriend) {
+      const activeItem = wrap.querySelector(`.nxFrItem[data-friend-id="${activeChatFriend.id}"]`);
+      if (activeItem) activeItem.classList.add("active");
+    }
   }
 
   function renderSetup(wrap) {
@@ -620,29 +803,21 @@
   function renderFriendsTab() {
     let html = "";
 
-    // Add friend row
-    html += `
-      <div class="nxFrAddRow">
-        <input type="text" id="nxFrAddInput" placeholder="Enter friend code..." maxlength="20" spellcheck="false" autocomplete="off" />
-        <button class="nxFrBtn primary" id="nxFrAddBtn" type="button">Add Friend</button>
-      </div>
-    `;
-
     if (!friendsList.length) {
       html += `
         <div class="nxFrEmpty">
           <div class="emptyIcon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></div>
-          No friends yet. Share your friend code or add someone!
+          No friends yet. Share your code or add someone!
         </div>
       `;
       return html;
     }
 
-    html += `<div class="nxFrList">`;
     for (const f of friendsList) {
       const p = f.friend;
       const online = !!p.is_online;
       const playing = online && p.current_game;
+      const unread = unreadCounts[p.id] || 0;
 
       let statusText = "Offline";
       if (online && playing) {
@@ -654,7 +829,7 @@
       }
 
       html += `
-        <div class="nxFrItem" data-friendship-id="${escapeHtml(f.id)}" data-friend-id="${escapeHtml(p.id)}">
+        <div class="nxFrItem" data-friendship-id="${escapeHtml(f.id)}" data-friend-id="${escapeHtml(p.id)}" data-action="open-chat">
           <div class="nxFrAvatar">
             ${avatarLetter(p.display_name || p.username)}
             <div class="nxFrOnlineDot ${online ? "online" : "offline"}"></div>
@@ -663,14 +838,13 @@
             <div class="nxFrName">${escapeHtml(p.display_name || p.username)}</div>
             <div class="nxFrStatus ${playing ? "playing" : ""}">${statusText}</div>
           </div>
-          <div class="nxFrActions">
-            <button class="nxFrBtn" data-action="message" data-friend-id="${escapeHtml(p.id)}" type="button">Message</button>
-            <button class="nxFrBtn danger" data-action="remove" data-friendship-id="${escapeHtml(f.id)}" type="button">Remove</button>
+          <div class="nxFrItemMeta">
+            ${unread > 0 ? `<span class="nxFrUnreadBadge">${unread}</span>` : ""}
+            <button class="nxFrBtn danger" data-action="remove" data-friendship-id="${escapeHtml(f.id)}" type="button" title="Remove friend">&#10005;</button>
           </div>
         </div>
       `;
     }
-    html += `</div>`;
     return html;
   }
 
@@ -678,8 +852,7 @@
     let html = "";
 
     if (pendingIncoming.length) {
-      html += `<div style="font-size:13px;font-weight:850;color:rgba(255,255,255,.55);margin-bottom:10px;">Incoming Requests</div>`;
-      html += `<div class="nxFrList" style="margin-bottom:20px;">`;
+      html += `<div class="nxFrSectionLabel">Incoming</div>`;
       for (const f of pendingIncoming) {
         const p = f.friend;
         html += `
@@ -696,12 +869,10 @@
           </div>
         `;
       }
-      html += `</div>`;
     }
 
     if (pendingSent.length) {
-      html += `<div style="font-size:13px;font-weight:850;color:rgba(255,255,255,.55);margin-bottom:10px;">Sent Requests</div>`;
-      html += `<div class="nxFrList">`;
+      html += `<div class="nxFrSectionLabel">Sent</div>`;
       for (const f of pendingSent) {
         const p = f.friend;
         html += `
@@ -717,7 +888,6 @@
           </div>
         `;
       }
-      html += `</div>`;
     }
 
     if (!pendingIncoming.length && !pendingSent.length) {
@@ -732,103 +902,47 @@
     return html;
   }
 
-  function renderMessagesTab() {
-    let html = "";
-
-    if (!conversations.length) {
-      html += `
-        <div class="nxFrEmpty">
-          <div class="emptyIcon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></div>
-          Add friends to start messaging
-        </div>
-      `;
-      return html;
-    }
-
-    html += `<div class="nxFrList">`;
-    for (const p of conversations) {
-      const unread = unreadCounts[p.id] || 0;
-      html += `
-        <div class="nxFrItem" style="cursor:pointer;" data-action="open-chat" data-friend-id="${escapeHtml(p.id)}">
-          <div class="nxFrAvatar">
-            ${avatarLetter(p.display_name || p.username)}
-            <div class="nxFrOnlineDot ${p.is_online ? "online" : "offline"}"></div>
-          </div>
-          <div class="nxFrInfo">
-            <div class="nxFrName">${escapeHtml(p.display_name || p.username)}</div>
-            <div class="nxFrStatus">${p.is_online ? (p.current_game ? "Playing " + escapeHtml(p.current_game) : "Online") : "Offline"}</div>
-          </div>
-          ${unread > 0 ? `<span class="nxFrTabBadge">${unread}</span>` : ""}
-        </div>
-      `;
-    }
-    html += `</div>`;
-    return html;
-  }
-
-  function renderChatView(wrap) {
-    if (!activeChatFriend) return;
+  function renderChatPanel() {
+    if (!activeChatFriend) return "";
     const p = activeChatFriend;
+    const online = !!p.is_online;
 
-    const chatHtml = `
-      <div class="nxFrChat" id="nxFrChatBox">
-        <div class="nxFrChatHeader">
-          <button class="nxFrChatBackBtn" id="nxFrChatBack" type="button">← Back</button>
+    let statusText = "Offline";
+    if (online && p.current_game) {
+      statusText = "Playing " + escapeHtml(p.current_game);
+    } else if (online) {
+      statusText = "Online";
+    } else if (p.last_seen) {
+      statusText = "last seen " + timeAgo(p.last_seen);
+    }
+
+    return `
+      <div class="nxFrChatHeader">
+        <button class="nxFrChatBackBtn" id="nxFrChatBack" type="button" title="Back">
+          <svg viewBox="0 0 24 24"><path d="M19 12H5"></path><path d="M12 19l-7-7 7-7"></path></svg>
+        </button>
+        <div class="nxFrChatAvatar">${avatarLetter(p.display_name || p.username)}</div>
+        <div class="nxFrChatHeaderInfo">
           <div class="nxFrChatName">${escapeHtml(p.display_name || p.username)}</div>
-        </div>
-        <div class="nxFrChatMessages" id="nxFrChatMessages"></div>
-        <div class="nxFrChatInput">
-          <input type="text" id="nxFrChatMsgInput" placeholder="Type a message..." maxlength="500" spellcheck="true" autocomplete="off" />
-          <button class="nxFrSendBtn" id="nxFrSendBtn" type="button">Send</button>
+          <div class="nxFrChatStatus ${online ? "online" : ""}">${statusText}</div>
         </div>
       </div>
+      <div class="nxFrChatMessages" id="nxFrChatMessages">
+        <div class="nxFrEmpty" style="padding:20px;">Loading messages...</div>
+      </div>
+      <div class="nxFrTypingIndicator" id="nxFrTypingIndicator"></div>
+      <div class="nxFrChatInput">
+        <input type="text" id="nxFrChatMsgInput" placeholder="Type a message..." maxlength="500" spellcheck="true" autocomplete="off" />
+        <button class="nxFrSendBtn" id="nxFrSendBtn" type="button" title="Send">
+          <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+        </button>
+      </div>
     `;
+  }
 
-    // Append chat after tabs
-    const existing = wrap.querySelector("#nxFrChatBox");
-    if (existing) existing.remove();
-
-    wrap.insertAdjacentHTML("beforeend", chatHtml);
-
-    // Bind chat events
-    const backBtn = wrap.querySelector("#nxFrChatBack");
-    const sendBtn = wrap.querySelector("#nxFrSendBtn");
-    const msgInput = wrap.querySelector("#nxFrChatMsgInput");
-
-    backBtn?.addEventListener("click", () => {
-      activeChatFriend = null;
-      chatMessages = [];
-      renderContent();
-    });
-
-    async function doSend() {
-      const text = msgInput?.value || "";
-      if (!text.trim()) return;
-      sendBtn.disabled = true;
-
-      const res = await sendMessage(activeChatFriend.id, text);
-      if (res.ok) {
-        msgInput.value = "";
-        // Add optimistically
-        chatMessages.push({
-          id: "temp-" + Date.now(),
-          sender_id: myId(),
-          receiver_id: activeChatFriend.id,
-          content: text.trim(),
-          is_read: false,
-          created_at: new Date().toISOString()
-        });
-        renderChatMessages();
-      }
-      sendBtn.disabled = false;
-      msgInput?.focus();
-    }
-
-    sendBtn?.addEventListener("click", doSend);
-    msgInput?.addEventListener("keydown", (e) => { if (e.key === "Enter") doSend(); });
-
-    // Load messages
-    loadChatMessages();
+  // Legacy wrapper kept for compatibility
+  function renderChatView(wrap) {
+    renderContent();
   }
 
   async function loadChatMessages() {
@@ -866,8 +980,8 @@
   }
 
   // ---- Event Binding ----
-  function bindTabEvents(wrap) {
-    // Copy code
+  function bindAllEvents(wrap) {
+    // Copy friend code
     wrap.querySelector("#nxFrCopyCode")?.addEventListener("click", () => {
       const code = myProfile?.friend_code || "";
       if (code && navigator.clipboard) {
@@ -880,32 +994,30 @@
     // Change username
     wrap.querySelector("#nxFrChangeUsername")?.addEventListener("click", async () => {
       const current = myProfile?.display_name || myProfile?.username || "";
+      const slot = wrap.querySelector("#nxFrProfileEditorSlot");
+      if (!slot) return;
 
-      // Replace the username card with an inline editor
-      const card = wrap.querySelector("#nxFrChangeUsername")?.closest(".nxFrCodeCard");
-      if (!card) return;
-
-      card.innerHTML = `
-        <div style="flex:1; min-width:0;">
-          <div class="nxFrCodeLabel">New Username</div>
-          <div class="nxFrSetupRow" style="margin-top:6px;">
+      slot.innerHTML = `
+        <div class="nxFrProfileEditor">
+          <div style="font-size:12px;font-weight:850;color:rgba(255,255,255,.50);margin-bottom:2px;">Change Username</div>
+          <div class="nxFrProfileEditorRow">
             <input type="text" id="nxFrNewNameInput" value="${escapeHtml(current)}" placeholder="3-20 chars" maxlength="20" spellcheck="false" autocomplete="off" />
             <button class="nxFrBtn primary" id="nxFrSaveNameBtn" type="button">Save</button>
             <button class="nxFrBtn" id="nxFrCancelNameBtn" type="button">Cancel</button>
           </div>
-          <div id="nxFrNameError" style="color: rgba(255,80,100,.9); font-size:12.5px; font-weight:750; margin-top:6px; display:none;"></div>
+          <div id="nxFrNameError" style="color: rgba(255,80,100,.9); font-size:12px; font-weight:750; display:none;"></div>
         </div>
       `;
 
-      const nameInput = card.querySelector("#nxFrNewNameInput");
-      const saveBtn = card.querySelector("#nxFrSaveNameBtn");
-      const cancelBtn = card.querySelector("#nxFrCancelNameBtn");
-      const errEl = card.querySelector("#nxFrNameError");
+      const nameInput = slot.querySelector("#nxFrNewNameInput");
+      const saveBtn = slot.querySelector("#nxFrSaveNameBtn");
+      const cancelBtn = slot.querySelector("#nxFrCancelNameBtn");
+      const errEl = slot.querySelector("#nxFrNameError");
 
       nameInput?.focus();
       nameInput?.select();
 
-      cancelBtn?.addEventListener("click", () => renderContent());
+      cancelBtn?.addEventListener("click", () => { slot.innerHTML = ""; });
 
       async function doSave() {
         const val = nameInput?.value || "";
@@ -936,9 +1048,7 @@
         renderContent();
       });
     });
-  }
 
-  function bindContentEvents(wrap) {
     // Add friend
     const addInput = wrap.querySelector("#nxFrAddInput");
     const addBtn = wrap.querySelector("#nxFrAddBtn");
@@ -947,7 +1057,7 @@
       const code = addInput?.value || "";
       if (!code.trim()) return;
       addBtn.disabled = true;
-      addBtn.textContent = "Sending...";
+      addBtn.textContent = "...";
 
       const res = await sendFriendRequest(code);
       if (res.ok) {
@@ -958,14 +1068,14 @@
       }
 
       addBtn.disabled = false;
-      addBtn.textContent = "Add Friend";
+      addBtn.textContent = "Add";
       renderContent();
     }
 
     addBtn?.addEventListener("click", doAdd);
     addInput?.addEventListener("keydown", (e) => { if (e.key === "Enter") doAdd(); });
 
-    // Friend actions
+    // Friend / request actions
     wrap.querySelectorAll("[data-action]").forEach(btn => {
       btn.addEventListener("click", async (e) => {
         e.stopPropagation();
@@ -983,38 +1093,62 @@
         } else if (action === "remove") {
           await removeFriend(friendshipId);
           if (typeof showToast === "function") showToast("Friend removed", "info");
+          if (activeChatFriend && activeChatFriend.id === friendId) {
+            cleanupTypingChannel();
+            activeChatFriend = null;
+            chatMessages = [];
+          }
           renderContent();
-        } else if (action === "message") {
+        } else if (action === "open-chat") {
           const friend = friendsList.find(f => f.friend.id === friendId)?.friend;
           if (friend) {
-            currentTab = "messages";
             activeChatFriend = friend;
             chatMessages = [];
-            renderContent();
-          }
-        } else if (action === "open-chat") {
-          const friend = conversations.find(p => p.id === friendId);
-          if (friend) {
-            activeChatFriend = friend;
-            chatMessages = [];
+            setupTypingChannel(friend.id);
             renderContent();
           }
         }
       });
     });
 
-    // Clickable friend items for messages tab
-    wrap.querySelectorAll(".nxFrItem[data-action='open-chat']").forEach(item => {
-      item.addEventListener("click", async () => {
-        const friendId = item.dataset.friendId;
-        const friend = conversations.find(p => p.id === friendId);
-        if (friend) {
-          activeChatFriend = friend;
-          chatMessages = [];
-          renderContent();
-        }
-      });
+    // Chat events (back, send)
+    const backBtn = wrap.querySelector("#nxFrChatBack");
+    const sendBtn = wrap.querySelector("#nxFrSendBtn");
+    const msgInput = wrap.querySelector("#nxFrChatMsgInput");
+
+    backBtn?.addEventListener("click", () => {
+      cleanupTypingChannel();
+      activeChatFriend = null;
+      chatMessages = [];
+      renderContent();
     });
+
+    async function doSend() {
+      if (!activeChatFriend) return;
+      const text = msgInput?.value || "";
+      if (!text.trim()) return;
+      sendBtn.disabled = true;
+
+      const res = await sendMessage(activeChatFriend.id, text);
+      if (res.ok) {
+        msgInput.value = "";
+        chatMessages.push({
+          id: "temp-" + Date.now(),
+          sender_id: myId(),
+          receiver_id: activeChatFriend.id,
+          content: text.trim(),
+          is_read: false,
+          created_at: new Date().toISOString()
+        });
+        renderChatMessages();
+      }
+      sendBtn.disabled = false;
+      msgInput?.focus();
+    }
+
+    sendBtn?.addEventListener("click", doSend);
+    msgInput?.addEventListener("keydown", (e) => { if (e.key === "Enter") doSend(); });
+    msgInput?.addEventListener("input", () => { broadcastTyping(); });
   }
 
   // ---- Main Render Entry ----
@@ -1055,6 +1189,7 @@
     const _origLoadPage = window.loadPage;
     window.loadPage = async function (page) {
       if (window.__currentPage === "friends" && page !== "friends") {
+        cleanupTypingChannel();
         activeChatFriend = null;
         chatMessages = [];
       }
@@ -1066,6 +1201,7 @@
   window.addEventListener("beforeunload", () => {
     goOffline();
     stopPresenceHeartbeat();
+    cleanupTypingChannel();
     cleanupRealtime();
   });
 

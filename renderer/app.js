@@ -186,12 +186,6 @@ const templates = {
   `,
 
   friends: `
-    <div class="simpleTop">
-      <h1 class="title">Friends</h1>
-    </div>
-
-    <div class="divider"></div>
-
     <div class="nxFriends" id="friendsWrap"></div>
   `,
 
