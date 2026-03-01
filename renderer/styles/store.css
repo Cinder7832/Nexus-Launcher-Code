@@ -50,7 +50,7 @@
 
 .storeTop{
   display:flex;
-  align-items:flex-start;
+  align-items:center;
   justify-content:space-between;
   flex-wrap: wrap;
   min-width: 0;

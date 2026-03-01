@@ -172,6 +172,7 @@
       /* Only applies on Store page because of .nxStorePage wrapper */
       .nxStorePage .storeTop{
         gap: 22px;
+        flex-wrap: nowrap;
       }
 
       /* Left column: title + category dropdown in a row */
@@ -180,7 +181,7 @@
         flex-direction: row;
         align-items: center;
         gap: 14px;
-        flex: 1 1 auto;
+        flex: 0 1 auto;
         min-width: 0;
       }
       .nxStorePage .storeTop > .storeTopLeft > .title,
@@ -188,11 +189,11 @@
         margin: 0;
       }
 
-      /* Force the search bar to keep its full designed width (match Library) */
+      /* Search bar: preferred width but allowed to shrink at high DPI */
       .nxStorePage .storeTop .searchWrap{
-        flex: 0 0 min(560px, 44vw);
+        flex: 1 1 min(560px, 44vw);
         width: min(560px, 44vw);
-        flex-shrink: 0;
+        min-width: 200px;
         margin-left: auto;
       }
     `;
