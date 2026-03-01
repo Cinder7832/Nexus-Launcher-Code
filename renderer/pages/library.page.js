@@ -1965,7 +1965,7 @@ if (showHint) {
         const locked = isGameLocked(game.id);
         const moveIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>`;
         const lockIcon = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 11V8A5 5 0 0 0 7 8v3H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1Zm-8-3a3 3 0 1 1 6 0v3H9V8Z"/></svg>`;
-        const unlockIcon = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 8A5 5 0 0 0 7 8v3H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-6V8a3 3 0 1 1 6 0h2Z"/></svg>`;
+        const unlockIcon = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 11V8a5 5 0 0 1 9.9-1h-2a3 3 0 0 0-5.9 1v3h9a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h1Z"/></svg>`;
 
         openLibraryCtxMenu(e.clientX, e.clientY, [
           {
