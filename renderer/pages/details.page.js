@@ -3304,6 +3304,8 @@ box-shadow: 0 14px 34px rgba(255,60,90,.10);
       if (cached > 0) downloadBytes = cached;
     }
 
+    const dateAddedRaw = String(meta?.dateAdded ?? meta?.date_added ?? meta?.addedDate ?? "").trim();
+
     const game = {
       id: gid,
       phase: getPhaseForGame(gid),
@@ -3325,7 +3327,8 @@ box-shadow: 0 14px 34px rgba(255,60,90,.10);
       autoUpdateEnabled: autoEnabled,
       downloadBytes,
       installedSizeBytes: Number(inst?.installedSizeBytes || inst?.extractedSizeBytes || inst?.installedBytes || 0) || 0,
-      canFetchRemoteSize
+      canFetchRemoteSize,
+      dateAdded: dateAddedRaw
     };
 
     return { game, meta, inst };
@@ -3386,6 +3389,71 @@ box-shadow: 0 14px 34px rgba(255,60,90,.10);
     }
   }
 
+
+// -------------------------------------------------
+// ✅ Date Added UI (falls back to earliest changelog entry date)
+// -------------------------------------------------
+const __nxDateAddedCache = new Map();
+
+function formatDateAdded(raw) {
+  if (!raw) return "—";
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return String(raw);
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+async function updateDateAddedUI(game) {
+  const el = document.getElementById("detailsDateAddedValue");
+  if (!el) return;
+
+  if (game.dateAdded) {
+    setTextIfChanged(el, formatDateAdded(game.dateAdded));
+    return;
+  }
+
+  const gid = String(game.id || "");
+  const cached = __nxDateAddedCache.get(gid);
+  if (cached) {
+    setTextIfChanged(el, formatDateAdded(cached));
+    return;
+  }
+
+  if (!game.changelogUrl) {
+    setTextIfChanged(el, "—");
+    return;
+  }
+
+  if (typeof window.api?.getChangelog !== "function") {
+    setTextIfChanged(el, "—");
+    return;
+  }
+
+  try {
+    const res = await window.api.getChangelog(game.id);
+    if (!res?.ok) { setTextIfChanged(el, "—"); return; }
+
+    const entries = normalizeChangelogEntries(res.data);
+    if (!entries.length) { setTextIfChanged(el, "—"); return; }
+
+    let earliest = null;
+    for (const e of entries) {
+      if (!e.date) continue;
+      const t = Date.parse(e.date);
+      if (!Number.isFinite(t)) continue;
+      if (earliest === null || t < earliest) earliest = t;
+    }
+
+    if (earliest !== null) {
+      const iso = new Date(earliest).toISOString();
+      __nxDateAddedCache.set(gid, iso);
+      setTextIfChanged(el, formatDateAdded(iso));
+    } else {
+      setTextIfChanged(el, "—");
+    }
+  } catch {
+    setTextIfChanged(el, "—");
+  }
+}
 
 // ✅ Installed (extracted) size UI (lazy backfill for older installs)
 const __nxInstalledSizeCache = new Map();
@@ -3898,7 +3966,8 @@ async function updateInstalledSizeUI(game) {
 
       await updateDownloadSizeUI(game);
       await updateInstalledSizeUI(game);
-      
+      await updateDateAddedUI(game);
+
       // Always update controller status to ensure it's correct
       updateControllerIndicator();
       return;
@@ -4030,6 +4099,10 @@ async function updateInstalledSizeUI(game) {
             <div class="infoRow"><span>Developer</span><span>${
               game.developers.length ? escapeHtml(game.developers.join(", ")) : "—"
             }</span></div>
+
+            <div class="infoRow"><span>Date Added</span><span id="detailsDateAddedValue">${
+              game.dateAdded ? escapeHtml(formatDateAdded(game.dateAdded)) : "—"
+            }</span></div>
           </div>
 
           ${renderAutoUpdateCard(game.id, game.autoUpdateEnabled, game.installed)}
@@ -4057,6 +4130,7 @@ async function updateInstalledSizeUI(game) {
     // ✅ Update download size without flicker (cached + text-only update)
     await updateDownloadSizeUI(game);
     await updateInstalledSizeUI(game);
+    await updateDateAddedUI(game);
     updateControllerIndicator();
 
     const imgWrap = document.getElementById("detailsImages");
