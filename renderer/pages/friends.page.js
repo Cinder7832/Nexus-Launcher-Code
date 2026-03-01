@@ -273,11 +273,10 @@
 
   function updateSidebarBadge() {
     const badge = document.getElementById("friendsBadge");
-    const total = totalUnread() + pendingIncoming.length;
     if (badge) {
-      badge.textContent = String(total);
-      badge.classList.toggle("visible", total > 0);
-      badge.style.display = total > 0 ? "inline-flex" : "none";
+      badge.textContent = "";
+      badge.classList.remove("visible");
+      badge.style.display = "none";
     }
   }
 
@@ -435,18 +434,8 @@
     if (!item) return;
     const meta = item.querySelector(".nxFrItemMeta");
     if (!meta) return;
-    const count = unreadCounts[friendId] || 0;
-    let badge = meta.querySelector(".nxFrUnreadBadge");
-    if (count > 0) {
-      if (!badge) {
-        badge = document.createElement("span");
-        badge.className = "nxFrUnreadBadge";
-        meta.insertBefore(badge, meta.firstChild);
-      }
-      badge.textContent = String(count);
-    } else if (badge) {
-      badge.remove();
-    }
+    const badge = meta.querySelector(".nxFrUnreadBadge");
+    if (badge) badge.remove();
   }
 
   // ---- Realtime Subscriptions ----
@@ -479,7 +468,7 @@
       })
       .subscribe();
 
-    // Listen for new messages
+    // Listen for new messages (incoming)
     const msgSub = client
       .channel("messages-changes")
       .on("postgres_changes", {
@@ -489,23 +478,52 @@
         filter: `receiver_id=eq.${myId()}`
       }, async (payload) => {
         const msg = payload?.new;
-        if (msg) {
-          // If chat is open with this sender, add to view
-          if (activeChatFriend && msg.sender_id === activeChatFriend.id) {
+        if (!msg) return;
+
+        // If chat is open with this sender, append in real-time
+        if (activeChatFriend && msg.sender_id === activeChatFriend.id) {
+          // Deduplicate
+          if (!chatMessages.some(m => m.id === msg.id)) {
             chatMessages.push(msg);
-            // Mark as read immediately
-            await sb().from("messages").update({ is_read: true }).eq("id", msg.id);
-            renderChatMessages();
-          } else {
-            // Increment unread
-            unreadCounts[msg.sender_id] = (unreadCounts[msg.sender_id] || 0) + 1;
-            updateSidebarBadge();
-            // Update unread badge on the friend's sidebar item in-place
-            updateFriendUnreadBadge(msg.sender_id);
+            appendChatMessage(msg);
           }
-          if (window.__currentPage === "friends" && !activeChatFriend) {
-            renderContent();
-          }
+          // Mark as read immediately
+          try { await sb().from("messages").update({ is_read: true }).eq("id", msg.id); } catch {}
+        } else {
+          // Increment unread count and update badges in-place (no full re-render)
+          unreadCounts[msg.sender_id] = (unreadCounts[msg.sender_id] || 0) + 1;
+          updateSidebarBadge();
+          updateFriendUnreadBadge(msg.sender_id);
+        }
+      })
+      // Listen for sent message confirmations (replace temp messages)
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "messages",
+        filter: `sender_id=eq.${myId()}`
+      }, (payload) => {
+        const msg = payload?.new;
+        if (!msg) return;
+
+        // Only process if chat is open with the receiver
+        if (!activeChatFriend || msg.receiver_id !== activeChatFriend.id) return;
+
+        // Replace the temp message with the confirmed server message
+        const tempIdx = chatMessages.findIndex(m =>
+          String(m.id).startsWith("temp-") &&
+          m.content === msg.content &&
+          m.receiver_id === msg.receiver_id
+        );
+        if (tempIdx >= 0) {
+          chatMessages[tempIdx] = msg;
+          // Update the DOM element's data-msg-id from temp to real
+          const els = document.querySelectorAll("#nxFrChatMessages .nxFrMsg");
+          if (els[tempIdx]) els[tempIdx].setAttribute("data-msg-id", msg.id);
+        } else if (!chatMessages.some(m => m.id === msg.id)) {
+          // Edge case: temp was missed, add the confirmed message
+          chatMessages.push(msg);
+          appendChatMessage(msg);
         }
       })
       .subscribe();
@@ -705,8 +723,8 @@
 
         <!-- Tabs -->
         <div class="nxFrTabs">
-          <button class="nxFrTab ${currentTab === "friends" ? "active" : ""}" data-tab="friends">Friends${msgUnread > 0 ? `<span class="nxFrTabBadge">${msgUnread}</span>` : ""}</button>
-          <button class="nxFrTab ${currentTab === "requests" ? "active" : ""}" data-tab="requests">Requests${requestCount > 0 ? `<span class="nxFrTabBadge">${requestCount}</span>` : ""}</button>
+          <button class="nxFrTab ${currentTab === "friends" ? "active" : ""}" data-tab="friends">Friends</button>
+          <button class="nxFrTab ${currentTab === "requests" ? "active" : ""}" data-tab="requests">Requests</button>
         </div>
 
         <!-- List content -->
@@ -853,8 +871,11 @@
             <div class="nxFrStatus ${playing ? "playing" : ""}">${statusText}</div>
           </div>
           <div class="nxFrItemMeta">
-            ${unread > 0 ? `<span class="nxFrUnreadBadge">${unread}</span>` : ""}
-            <button class="nxFrBtn danger" data-action="remove" data-friendship-id="${escapeHtml(f.id)}" type="button" title="Remove friend">&#10005;</button>
+            <div class="nxFrKebabWrap">
+              <button class="nxFrKebab" data-action="kebab" data-friendship-id="${escapeHtml(f.id)}" data-friend-id="${escapeHtml(p.id)}" data-friend-name="${escapeHtml(p.display_name || p.username)}" type="button" title="More options">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"></circle><circle cx="12" cy="12" r="1.5"></circle><circle cx="12" cy="19" r="1.5"></circle></svg>
+              </button>
+            </div>
           </div>
         </div>
       `;
@@ -979,7 +1000,7 @@
     for (const m of chatMessages) {
       const isMine = m.sender_id === uid;
       html += `
-        <div class="nxFrMsg ${isMine ? "sent" : "received"}">
+        <div class="nxFrMsg ${isMine ? "sent" : "received"}" data-msg-id="${escapeHtml(m.id)}">
           ${escapeHtml(m.content)}
           <div class="nxFrMsgTime">${formatTime(m.created_at)}</div>
         </div>
@@ -987,14 +1008,93 @@
     }
     container.innerHTML = html;
 
-    // Scroll to bottom
+    // Scroll to bottom on initial load
     requestAnimationFrame(() => {
       container.scrollTop = container.scrollHeight;
     });
   }
 
+  function appendChatMessage(msg) {
+    const container = document.getElementById("nxFrChatMessages");
+    if (!container) return;
+
+    // Remove empty placeholder if present
+    const empty = container.querySelector(".nxFrEmpty");
+    if (empty) empty.remove();
+
+    // Smart scroll: only auto-scroll if user is already near the bottom
+    const wasNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+
+    const uid = myId();
+    const isMine = msg.sender_id === uid;
+    const div = document.createElement("div");
+    div.className = `nxFrMsg ${isMine ? "sent" : "received"}`;
+    div.setAttribute("data-msg-id", msg.id);
+    div.innerHTML = `${escapeHtml(msg.content)}<div class="nxFrMsgTime">${formatTime(msg.created_at)}</div>`;
+    container.appendChild(div);
+
+    if (wasNearBottom || isMine) {
+      requestAnimationFrame(() => {
+        container.scrollTop = container.scrollHeight;
+      });
+    }
+  }
+
   // ---- Event Binding ----
   let _popoverCloseHandler = null;
+  let _kebabCloseHandler = null;
+
+  function closeOpenKebabMenu() {
+    document.querySelectorAll(".nxFrKebabMenu").forEach(m => m.remove());
+    document.querySelectorAll(".nxFrKebab.open").forEach(b => b.classList.remove("open"));
+    if (_kebabCloseHandler) {
+      document.removeEventListener("click", _kebabCloseHandler);
+      _kebabCloseHandler = null;
+    }
+  }
+
+  function showRemoveConfirmDialog(friendshipId, friendId, friendName) {
+    document.querySelector(".nxFrConfirmOverlay")?.remove();
+
+    const overlay = document.createElement("div");
+    overlay.className = "nxFrConfirmOverlay";
+    overlay.innerHTML = `
+      <div class="nxFrConfirmCard" role="dialog" aria-modal="true">
+        <div class="nxFrConfirmTitle">Remove friend</div>
+        <div class="nxFrConfirmMsg">Are you sure you want to remove <strong>${escapeHtml(friendName)}</strong> from your friends list?</div>
+        <div class="nxFrConfirmActions">
+          <button class="nxFrBtn" data-act="cancel" type="button">Cancel</button>
+          <button class="nxFrBtn danger" data-act="confirm" type="button">Remove</button>
+        </div>
+      </div>
+    `;
+
+    function close() {
+      document.removeEventListener("keydown", onKey);
+      overlay.remove();
+    }
+
+    function onKey(e) {
+      if (e.key === "Escape") close();
+    }
+
+    overlay.querySelector('[data-act="cancel"]').addEventListener("click", close);
+    overlay.querySelector('[data-act="confirm"]').addEventListener("click", async () => {
+      close();
+      await removeFriend(friendshipId);
+      if (typeof showToast === "function") showToast("Friend removed", "info");
+      if (activeChatFriend && activeChatFriend.id === friendId) {
+        cleanupTypingChannel();
+        activeChatFriend = null;
+        chatMessages = [];
+      }
+      renderContent();
+    });
+
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(overlay);
+  }
 
   function bindAllEvents(wrap) {
     // Clean up previous popover close handler
@@ -1002,6 +1102,7 @@
       document.removeEventListener("click", _popoverCloseHandler);
       _popoverCloseHandler = null;
     }
+    closeOpenKebabMenu();
 
     // Copy friend code
     wrap.querySelector("#nxFrCopyCode")?.addEventListener("click", () => {
@@ -1148,16 +1249,33 @@
         } else if (action === "reject" || action === "cancel") {
           await rejectRequest(friendshipId);
           renderContent();
-        } else if (action === "remove") {
-          await removeFriend(friendshipId);
-          if (typeof showToast === "function") showToast("Friend removed", "info");
-          if (activeChatFriend && activeChatFriend.id === friendId) {
-            cleanupTypingChannel();
-            activeChatFriend = null;
-            chatMessages = [];
-          }
-          renderContent();
+        } else if (action === "kebab") {
+          closeOpenKebabMenu();
+          const kebabWrap = btn.closest(".nxFrKebabWrap");
+          if (!kebabWrap) return;
+          btn.classList.add("open");
+          const menu = document.createElement("div");
+          menu.className = "nxFrKebabMenu";
+          menu.innerHTML = `
+            <button class="nxFrKebabMenuItem" type="button">
+              <svg viewBox="0 0 24 24"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+              Remove friend
+            </button>
+          `;
+          kebabWrap.appendChild(menu);
+          menu.querySelector(".nxFrKebabMenuItem").addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            closeOpenKebabMenu();
+            showRemoveConfirmDialog(friendshipId, friendId, btn.dataset.friendName || "this friend");
+          });
+          _kebabCloseHandler = function (ev) {
+            if (!kebabWrap.contains(ev.target)) {
+              closeOpenKebabMenu();
+            }
+          };
+          setTimeout(() => document.addEventListener("click", _kebabCloseHandler), 0);
         } else if (action === "open-chat") {
+          closeOpenKebabMenu();
           const friend = friendsList.find(f => f.friend.id === friendId)?.friend;
           if (friend) {
             activeChatFriend = friend;
@@ -1187,18 +1305,27 @@
       if (!text.trim()) return;
       sendBtn.disabled = true;
 
+      // Optimistic: show message instantly before server confirms
+      const tempMsg = {
+        id: "temp-" + Date.now(),
+        sender_id: myId(),
+        receiver_id: activeChatFriend.id,
+        content: text.trim(),
+        is_read: false,
+        created_at: new Date().toISOString()
+      };
+      msgInput.value = "";
+      chatMessages.push(tempMsg);
+      appendChatMessage(tempMsg);
+
       const res = await sendMessage(activeChatFriend.id, text);
-      if (res.ok) {
-        msgInput.value = "";
-        chatMessages.push({
-          id: "temp-" + Date.now(),
-          sender_id: myId(),
-          receiver_id: activeChatFriend.id,
-          content: text.trim(),
-          is_read: false,
-          created_at: new Date().toISOString()
-        });
-        renderChatMessages();
+      if (!res.ok) {
+        // Remove the optimistic message on failure
+        const idx = chatMessages.indexOf(tempMsg);
+        if (idx >= 0) chatMessages.splice(idx, 1);
+        const failEl = document.querySelector(`[data-msg-id="${tempMsg.id}"]`);
+        if (failEl) failEl.remove();
+        if (typeof showToast === "function") showToast("Failed to send message", "error");
       }
       sendBtn.disabled = false;
       msgInput?.focus();
