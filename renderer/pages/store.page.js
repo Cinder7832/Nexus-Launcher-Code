@@ -1786,6 +1786,8 @@ async function applyGridFromSettings() {
         const bs = buttonState(game);
 
         const cover = game.imageUrl || game.image || game.cover || game.coverUrl || "";
+        const devs = getGameDevelopers(game);
+        const devText = devs.length > 0 ? devs.join(", ") : "";
 
         const isNew = isRecentlyAdded(game);
 
@@ -1796,6 +1798,7 @@ async function applyGridFromSettings() {
           <div class="tileInfo">
             <div class="tileBadge">v${game.version || "0.0.0"}</div>
             <div class="tileName">${game.name || "Game"}</div>
+            ${devText ? `<div class="nxCollTileDev">${devText}</div>` : ""}
             <button class="ctaBtn" ${bs.disabled ? "disabled" : ""}>
               ${bs.text}
             </button>
