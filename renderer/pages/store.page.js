@@ -171,10 +171,17 @@
         gap: 22px;
       }
 
-      /* Let left column use remaining space */
-      .nxStorePage .storeTop > div:first-child{
+      /* Left column: title + category dropdown in a row */
+      .nxStorePage .storeTop > .storeTopLeft{
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 14px;
         flex: 1 1 auto;
         min-width: 0;
+      }
+      .nxStorePage .storeTop > .storeTopLeft > .title{
+        margin: 0;
       }
 
       /* Force the search bar to keep its full designed width (match Library) */
@@ -376,6 +383,12 @@ async function applyGridFromSettings() {
     return arr.map((x) => String(x || "").trim()).filter(Boolean);
   }
 
+  function getGameCategories(game) {
+    const c = game?.category ?? game?.categories ?? game?.genre ?? game?.genres ?? game?.tags ?? [];
+    const arr = Array.isArray(c) ? c : [c];
+    return arr.map((x) => String(x || "").trim()).filter(Boolean);
+  }
+
   function normalizeSearchText(value) {
     return String(value || "")
       .toLowerCase()
@@ -461,10 +474,135 @@ async function applyGridFromSettings() {
     return true;
   }
 
+  // ---- Category dropdown styles (analytics-inspired) ----
+  const NX_STORE_CAT_STYLE_ID = "nxStoreCategoryDropdownStyle";
+  function ensureCategoryDropdownStyles() {
+    if (document.getElementById(NX_STORE_CAT_STYLE_ID)) return;
+    const s = document.createElement("style");
+    s.id = NX_STORE_CAT_STYLE_ID;
+    s.textContent = `
+      .nxCatWrap{ position: relative; flex: 0 0 auto; }
+
+      .nxCatBtn{
+        border: 1px solid rgba(255,255,255,.10);
+        background: rgba(255,255,255,.06);
+        color: rgba(255,255,255,.92);
+        border-radius: 14px;
+        padding: 10px 14px;
+        font-size: 13px;
+        font-weight: 900;
+        cursor: pointer;
+        outline: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        transition: background .16s ease, border-color .16s ease, transform .16s ease;
+        white-space: nowrap;
+      }
+      .nxCatBtn:hover{
+        background: rgba(255,255,255,.09);
+        border-color: rgba(255,255,255,.14);
+      }
+      .nxCatBtn:active{ transform: translateY(0) scale(.98); }
+      .nxCatBtn svg{
+        width: 16px; height: 16px;
+        stroke: rgba(255,255,255,.82);
+        fill: none;
+        stroke-width: 2.4;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        transition: transform .18s ease;
+      }
+      .nxCatBtn.open svg{ transform: rotate(180deg); }
+
+      .nxCatPanel{
+        position: absolute;
+        top: calc(100% + 8px);
+        left: 0;
+        min-width: 200px;
+        max-width: 280px;
+        max-height: 340px;
+        overflow-y: auto;
+        padding: 8px;
+        border-radius: 16px;
+        border: 1px solid rgba(255,255,255,.10);
+        background: rgba(20,22,32,.92);
+        box-shadow: 0 26px 80px rgba(0,0,0,.55);
+        backdrop-filter: blur(14px);
+        opacity: 0;
+        transform: translateY(-6px) scale(.98);
+        pointer-events: none;
+        transition: opacity .18s ease, transform .22s cubic-bezier(.2,.9,.2,1);
+        z-index: 10000;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255,255,255,.12) transparent;
+      }
+      .nxCatPanel::-webkit-scrollbar{ width: 5px; }
+      .nxCatPanel::-webkit-scrollbar-track{ background: transparent; }
+      .nxCatPanel::-webkit-scrollbar-thumb{ background: rgba(255,255,255,.12); border-radius: 999px; }
+      .nxCatPanel.open{
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        pointer-events: auto;
+      }
+
+      .nxCatItem{
+        width: 100%;
+        text-align: left;
+        padding: 10px 10px;
+        border-radius: 12px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: rgba(255,255,255,.92);
+        font-size: 13px;
+        font-weight: 900;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        transition: background .14s, color .14s, border-color .14s;
+      }
+      .nxCatItem:hover{
+        background: rgba(255,255,255,.06);
+        color: #fff;
+        border-color: rgba(255,255,255,.12);
+      }
+      .nxCatItem.active{
+        background: rgba(124,92,255,.18);
+        color: rgba(255,255,255,.95);
+        border-color: rgba(124,92,255,.26);
+        box-shadow: 0 14px 34px rgba(124,92,255,.12);
+      }
+
+      .nxCatCheck{
+        width: 20px; height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        opacity: 0;
+        transition: opacity .14s;
+      }
+      .nxCatItem.active .nxCatCheck{ opacity: 1; }
+      .nxCatCheck svg{
+        width: 18px; height: 18px;
+        stroke: #fff;
+        fill: none;
+        stroke-width: 2.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        display: block;
+      }
+    `;
+    document.head.appendChild(s);
+  }
+
   window.renderStore = async function () {
     bindEventsOnce();
     ensureSearchBarStyles();
     ensureStoreSearchWidthFix();
+    ensureCategoryDropdownStyles();
     await applyGridFromSettings();
 
     const page = document.getElementById("page");
@@ -479,8 +617,16 @@ async function applyGridFromSettings() {
     page.innerHTML = `
       <div class="nxStorePage">
         <div class="storeTop">
-          <div>
+          <div class="storeTopLeft">
             <div class="title">All Games</div>
+
+            <div class="nxCatWrap" id="storeCatWrap">
+              <button class="nxCatBtn" id="storeCatBtn" type="button">
+                <span id="storeCatLabel">All</span>
+                <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+              <div class="nxCatPanel" id="storeCatPanel"></div>
+            </div>
           </div>
 
           <div class="searchWrap">
@@ -627,7 +773,12 @@ async function applyGridFromSettings() {
       new Set(all.flatMap((g) => getGameDevelopers(g)).map((x) => x.trim()).filter(Boolean))
     ).sort((a, b) => a.localeCompare(b));
 
+    const catList = Array.from(
+      new Set(all.flatMap((g) => getGameCategories(g)).map((x) => x.trim()).filter(Boolean))
+    ).sort((a, b) => a.localeCompare(b));
+
     const selectedDevs = new Set();
+    let selectedCategory = ""; // "" means All
 
     function updateDevNav() {
       if (!devPills || !devRow || !navLeft || !navRight) return;
@@ -662,6 +813,78 @@ async function applyGridFromSettings() {
 
       requestAnimationFrame(updateDevNav);
     }
+
+    // ---- Category dropdown logic ----
+    const catWrap = document.getElementById("storeCatWrap");
+    const catBtn = document.getElementById("storeCatBtn");
+    const catPanel = document.getElementById("storeCatPanel");
+    const catLabel = document.getElementById("storeCatLabel");
+
+    function renderCategoryDropdown() {
+      if (!catPanel) return;
+      catPanel.innerHTML = "";
+
+      // "All" item
+      const allItem = document.createElement("button");
+      allItem.className = "nxCatItem" + (selectedCategory === "" ? " active" : "");
+      allItem.innerHTML = `<span>All</span><span class="nxCatCheck"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span>`;
+      allItem.onclick = () => {
+        selectedCategory = "";
+        if (catLabel) catLabel.textContent = "All";
+        closeCategoryDropdown();
+        renderCategoryDropdown();
+        applyFilter();
+      };
+      catPanel.appendChild(allItem);
+
+      for (const cat of catList) {
+        const item = document.createElement("button");
+        item.className = "nxCatItem" + (selectedCategory === cat ? " active" : "");
+        item.innerHTML = `<span>${cat}</span><span class="nxCatCheck"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span>`;
+        item.onclick = () => {
+          selectedCategory = cat;
+          if (catLabel) catLabel.textContent = cat;
+          closeCategoryDropdown();
+          renderCategoryDropdown();
+          applyFilter();
+        };
+        catPanel.appendChild(item);
+      }
+    }
+
+    function openCategoryDropdown() {
+      if (!catPanel || !catBtn) return;
+      catPanel.classList.add("open");
+      catBtn.classList.add("open");
+    }
+
+    function closeCategoryDropdown() {
+      if (!catPanel || !catBtn) return;
+      catPanel.classList.remove("open");
+      catBtn.classList.remove("open");
+    }
+
+    if (catBtn) {
+      catBtn.onclick = (e) => {
+        e.stopPropagation();
+        const isOpen = catPanel?.classList.contains("open");
+        if (isOpen) closeCategoryDropdown();
+        else openCategoryDropdown();
+      };
+    }
+
+    // Close on outside click
+    function onDocClickCat(e) {
+      if (catWrap && !catWrap.contains(e.target)) closeCategoryDropdown();
+    }
+    document.addEventListener("click", onDocClickCat);
+
+    // Hide dropdown if no categories exist
+    if (catList.length === 0 && catWrap) {
+      catWrap.style.display = "none";
+    }
+
+    renderCategoryDropdown();
 
     function buttonState(game) {
       const isInstalled = !!installed?.[game.id];
@@ -800,13 +1023,20 @@ async function applyGridFromSettings() {
       return true;
     }
 
+    function matchesSelectedCategory(game) {
+      if (!selectedCategory) return true;
+      const cats = getGameCategories(game).map((x) => x.toLowerCase());
+      return cats.includes(selectedCategory.toLowerCase());
+    }
+
     function applyFilter() {
       const q = String(input?.value || "");
 
       const filtered = all.filter((g) => {
         const nameOk = matchesSearch(g, q);
         const devOk = matchesSelectedDevs(g);
-        return nameOk && devOk;
+        const catOk = matchesSelectedCategory(g);
+        return nameOk && devOk && catOk;
       });
 
       render(filtered);
