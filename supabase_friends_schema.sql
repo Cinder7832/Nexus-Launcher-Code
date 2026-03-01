@@ -85,6 +85,10 @@ create policy "Users can send messages" on messages
 create policy "Receiver can update messages" on messages
   for update using (auth.uid() = receiver_id);
 
+-- Users can delete their own sent messages
+create policy "Sender can delete own messages" on messages
+  for delete using (auth.uid() = sender_id);
+
 -- Index for fast message queries
 create index if not exists idx_messages_conversation
   on messages (least(sender_id, receiver_id), greatest(sender_id, receiver_id), created_at desc);
@@ -92,6 +96,23 @@ create index if not exists idx_messages_conversation
 -- Index for friendship lookups
 create index if not exists idx_friendships_sender on friendships (sender_id);
 create index if not exists idx_friendships_receiver on friendships (receiver_id);
+
+-- ============================================================
+-- Stale-presence cleanup
+-- Marks users offline if their last heartbeat (last_seen) is
+-- older than 2 minutes.  Call via pg_cron every minute:
+--   select cron.schedule('cleanup-stale-presence', '* * * * *',
+--     $$ select mark_stale_profiles_offline(); $$);
+-- ============================================================
+create or replace function mark_stale_profiles_offline()
+returns void language sql security definer as $$
+  update profiles
+  set is_online = false,
+      current_game = null,
+      current_game_id = null
+  where is_online = true
+    and last_seen < now() - interval '2 minutes';
+$$;
 
 -- ============================================================
 -- Enable Realtime on these tables (for live updates)

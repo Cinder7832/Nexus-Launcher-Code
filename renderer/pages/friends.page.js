@@ -42,10 +42,28 @@
     } catch { return ""; }
   }
 
+  function readReceiptHtml(msg) {
+    const isMine = msg.sender_id === myId();
+    if (!isMine) return "";
+    const isTemp = String(msg.id).startsWith("temp-");
+    if (isTemp) return `<span class="nxFrMsgCheck"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"></path></svg></span>`;
+    if (msg.is_read) return `<span class="nxFrMsgCheck read"><svg viewBox="0 0 24 24"><path d="M18 6L7 17l-5-5"></path><path d="M22 6L11 17"></path></svg></span>`;
+    return `<span class="nxFrMsgCheck"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"></path></svg></span>`;
+  }
+
   function escapeHtml(s) {
     const div = document.createElement("div");
     div.textContent = String(s || "");
     return div.innerHTML;
+  }
+
+  // Stale-presence check: treat a profile as online only if is_online
+  // AND last_seen is within 90 seconds (3× the 30-second heartbeat).
+  const PRESENCE_STALE_MS = 90000;
+  function isOnline(profile) {
+    if (!profile?.is_online) return false;
+    if (!profile.last_seen) return false;
+    return (Date.now() - new Date(profile.last_seen).getTime()) < PRESENCE_STALE_MS;
   }
 
   // ---- Profile Management ----
@@ -239,8 +257,9 @@
 
     // Sort friends: online first, then alphabetical
     friendsList.sort((a, b) => {
-      if (a.friend.is_online && !b.friend.is_online) return -1;
-      if (!a.friend.is_online && b.friend.is_online) return 1;
+      const aOn = isOnline(a.friend), bOn = isOnline(b.friend);
+      if (aOn && !bOn) return -1;
+      if (!aOn && bOn) return 1;
       return String(a.friend.display_name || "").localeCompare(String(b.friend.display_name || ""));
     });
   }
@@ -405,11 +424,126 @@
     return { ok: true };
   }
 
+  async function deleteMessage(messageId) {
+    const client = sb();
+    if (!client || !myId()) return { ok: false, error: "Not ready" };
+
+    const { error } = await client
+      .from("messages")
+      .delete()
+      .eq("id", messageId)
+      .eq("sender_id", myId());
+
+    if (error) return { ok: false, error: error.message };
+
+    // Remove from local state
+    const idx = chatMessages.findIndex(m => m.id === messageId);
+    if (idx >= 0) chatMessages.splice(idx, 1);
+
+    // Remove from DOM
+    const el = document.querySelector(`.nxFrMsg[data-msg-id="${messageId}"]`);
+    if (el) el.remove();
+
+    // Show empty state if no messages left
+    if (!chatMessages.length) {
+      const container = document.getElementById("nxFrChatMessages");
+      if (container) container.innerHTML = `<div class="nxFrEmpty" style="padding:20px;">No messages yet. Say hi!</div>`;
+    }
+
+    return { ok: true };
+  }
+
+  // ---- Message Context Menu ----
+  let _msgCtxCloseHandler = null;
+
+  function closeMsgContextMenu() {
+    document.querySelectorAll(".nxFrMsgCtxMenu").forEach(m => m.remove());
+    if (_msgCtxCloseHandler) {
+      document.removeEventListener("click", _msgCtxCloseHandler);
+      document.removeEventListener("contextmenu", _msgCtxCloseHandler);
+      _msgCtxCloseHandler = null;
+    }
+  }
+
+  function showMsgContextMenu(e, messageId) {
+    e.preventDefault();
+    closeMsgContextMenu();
+
+    const menu = document.createElement("div");
+    menu.className = "nxFrMsgCtxMenu";
+    menu.innerHTML = `
+      <button class="nxFrMsgCtxItem danger" type="button">
+        <svg viewBox="0 0 24 24"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+        Delete message
+      </button>
+    `;
+
+    menu.style.position = "fixed";
+    menu.style.left = e.clientX + "px";
+    menu.style.top = e.clientY + "px";
+    document.body.appendChild(menu);
+
+    // Keep menu within viewport
+    const rect = menu.getBoundingClientRect();
+    if (rect.right > window.innerWidth) menu.style.left = (window.innerWidth - rect.width - 8) + "px";
+    if (rect.bottom > window.innerHeight) menu.style.top = (window.innerHeight - rect.height - 8) + "px";
+
+    menu.querySelector(".nxFrMsgCtxItem").addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      closeMsgContextMenu();
+      showDeleteMessageDialog(messageId);
+    });
+
+    _msgCtxCloseHandler = () => closeMsgContextMenu();
+    setTimeout(() => {
+      document.addEventListener("click", _msgCtxCloseHandler);
+      document.addEventListener("contextmenu", _msgCtxCloseHandler);
+    }, 0);
+  }
+
+  function showDeleteMessageDialog(messageId) {
+    document.querySelector(".nxFrConfirmOverlay")?.remove();
+
+    const overlay = document.createElement("div");
+    overlay.className = "nxFrConfirmOverlay";
+    overlay.innerHTML = `
+      <div class="nxFrConfirmCard" role="dialog" aria-modal="true">
+        <div class="nxFrConfirmTitle">Delete message</div>
+        <div class="nxFrConfirmMsg">Are you sure you want to delete this message? This cannot be undone.</div>
+        <div class="nxFrConfirmActions">
+          <button class="nxFrBtn" data-act="cancel" type="button">Cancel</button>
+          <button class="nxFrBtn danger" data-act="confirm" type="button">Delete</button>
+        </div>
+      </div>
+    `;
+
+    function close() {
+      document.removeEventListener("keydown", onKey);
+      overlay.remove();
+    }
+    function onKey(e) { if (e.key === "Escape") close(); }
+
+    overlay.querySelector('[data-act="cancel"]').addEventListener("click", close);
+    overlay.querySelector('[data-act="confirm"]').addEventListener("click", async () => {
+      close();
+      const res = await deleteMessage(messageId);
+      if (res.ok) {
+        if (typeof showToast === "function") showToast("Message deleted", "info");
+      } else {
+        if (typeof showToast === "function") showToast(res.error || "Failed to delete message", "error");
+      }
+    });
+
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(overlay);
+  }
+
   // ---- In-place DOM update for friend sidebar items (avoids nuking chat input) ----
   function updateFriendItemInPlace(profile) {
     const item = document.querySelector(`.nxFrItem[data-friend-id="${profile.id}"]`);
     if (!item) return;
-    const online = !!profile.is_online;
+    const online = isOnline(profile);
     const playing = online && profile.current_game;
     const dot = item.querySelector(".nxFrOnlineDot");
     if (dot) {
@@ -517,13 +651,60 @@
         );
         if (tempIdx >= 0) {
           chatMessages[tempIdx] = msg;
-          // Update the DOM element's data-msg-id from temp to real
+          // Update the DOM element's data-msg-id from temp to real and refresh receipt
           const els = document.querySelectorAll("#nxFrChatMessages .nxFrMsg");
-          if (els[tempIdx]) els[tempIdx].setAttribute("data-msg-id", msg.id);
+          if (els[tempIdx]) {
+            els[tempIdx].setAttribute("data-msg-id", msg.id);
+            const timeEl = els[tempIdx].querySelector(".nxFrMsgTime");
+            if (timeEl) timeEl.innerHTML = `${formatTime(msg.created_at)}${readReceiptHtml(msg)}`;
+          }
         } else if (!chatMessages.some(m => m.id === msg.id)) {
           // Edge case: temp was missed, add the confirmed message
           chatMessages.push(msg);
           appendChatMessage(msg);
+        }
+      })
+      // Listen for read status updates on our sent messages
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "messages",
+        filter: `sender_id=eq.${myId()}`
+      }, (payload) => {
+        const updated = payload?.new;
+        if (!updated || !updated.is_read) return;
+
+        // Update local state
+        const msg = chatMessages.find(m => m.id === updated.id);
+        if (msg) msg.is_read = true;
+
+        // Update the checkmark in the DOM
+        const el = document.querySelector(`.nxFrMsg[data-msg-id="${updated.id}"] .nxFrMsgCheck`);
+        if (el) {
+          el.classList.add("read");
+          el.innerHTML = `<svg viewBox="0 0 24 24"><path d="M18 6L7 17l-5-5"></path><path d="M22 6L11 17"></path></svg>`;
+        }
+      })
+      // Listen for deleted messages
+      .on("postgres_changes", {
+        event: "DELETE",
+        schema: "public",
+        table: "messages"
+      }, (payload) => {
+        const old = payload?.old;
+        if (!old || !old.id) return;
+
+        // Remove from local state if in current chat
+        const idx = chatMessages.findIndex(m => m.id === old.id);
+        if (idx >= 0) {
+          chatMessages.splice(idx, 1);
+          const el = document.querySelector(`.nxFrMsg[data-msg-id="${old.id}"]`);
+          if (el) el.remove();
+
+          if (!chatMessages.length) {
+            const container = document.getElementById("nxFrChatMessages");
+            if (container) container.innerHTML = `<div class="nxFrEmpty" style="padding:20px;">No messages yet. Say hi!</div>`;
+          }
         }
       })
       .subscribe();
@@ -558,7 +739,7 @@
           const statusEl = document.querySelector(".nxFrChatStatus");
           const nameEl = document.querySelector(".nxFrChatName");
           if (statusEl) {
-            const online = !!updated.is_online;
+            const online = isOnline(updated);
             let st = "Offline";
             if (online && updated.current_game) st = "Playing " + escapeHtml(updated.current_game);
             else if (online) st = "Online";
@@ -847,7 +1028,7 @@
 
     for (const f of friendsList) {
       const p = f.friend;
-      const online = !!p.is_online;
+      const online = isOnline(p);
       const playing = online && p.current_game;
       const unread = unreadCounts[p.id] || 0;
 
@@ -940,7 +1121,7 @@
   function renderChatPanel() {
     if (!activeChatFriend) return "";
     const p = activeChatFriend;
-    const online = !!p.is_online;
+    const online = isOnline(p);
 
     let statusText = "Offline";
     if (online && p.current_game) {
@@ -1002,7 +1183,7 @@
       html += `
         <div class="nxFrMsg ${isMine ? "sent" : "received"}" data-msg-id="${escapeHtml(m.id)}">
           ${escapeHtml(m.content)}
-          <div class="nxFrMsgTime">${formatTime(m.created_at)}</div>
+          <div class="nxFrMsgTime">${formatTime(m.created_at)}${readReceiptHtml(m)}</div>
         </div>
       `;
     }
@@ -1030,7 +1211,7 @@
     const div = document.createElement("div");
     div.className = `nxFrMsg ${isMine ? "sent" : "received"}`;
     div.setAttribute("data-msg-id", msg.id);
-    div.innerHTML = `${escapeHtml(msg.content)}<div class="nxFrMsgTime">${formatTime(msg.created_at)}</div>`;
+    div.innerHTML = `${escapeHtml(msg.content)}<div class="nxFrMsgTime">${formatTime(msg.created_at)}${readReceiptHtml(msg)}</div>`;
     container.appendChild(div);
 
     if (wasNearBottom || isMine) {
@@ -1287,6 +1468,18 @@
       });
     });
 
+    // Message context menu (right-click to delete own messages)
+    const chatContainer = wrap.querySelector("#nxFrChatMessages");
+    if (chatContainer) {
+      chatContainer.addEventListener("contextmenu", (e) => {
+        const msgEl = e.target.closest(".nxFrMsg.sent");
+        if (!msgEl) return;
+        const msgId = msgEl.getAttribute("data-msg-id");
+        if (!msgId || String(msgId).startsWith("temp-")) return;
+        showMsgContextMenu(e, msgId);
+      });
+    }
+
     // Chat events (back, send)
     const backBtn = wrap.querySelector("#nxFrChatBack");
     const sendBtn = wrap.querySelector("#nxFrSendBtn");
@@ -1383,11 +1576,50 @@
   }
 
   // ---- Offline on window close / unload ----
+  // Use fetch with keepalive so the request survives the page unload.
+  function goOfflineSync() {
+    try {
+      const uid = myId();
+      const url = window.__SUPABASE_URL;
+      const key = window.__SUPABASE_ANON_KEY;
+      if (!uid || !url || !key) return;
+
+      const token = localStorage.getItem("nx.sb.auth.v1");
+      let jwt = key;
+      try {
+        const parsed = JSON.parse(token);
+        if (parsed?.access_token) jwt = parsed.access_token;
+      } catch {}
+
+      fetch(`${url}/rest/v1/profiles?id=eq.${uid}`, {
+        method: "PATCH",
+        headers: {
+          "apikey": key,
+          "Authorization": `Bearer ${jwt}`,
+          "Content-Type": "application/json",
+          "Prefer": "return=minimal"
+        },
+        body: JSON.stringify({
+          is_online: false,
+          current_game: null,
+          current_game_id: null,
+          last_seen: new Date().toISOString()
+        }),
+        keepalive: true
+      }).catch(() => {});
+    } catch {}
+  }
+
   window.addEventListener("beforeunload", () => {
-    goOffline();
+    goOfflineSync();
     stopPresenceHeartbeat();
     cleanupTypingChannel();
     cleanupRealtime();
+  });
+
+  // Also listen for the main-process quit signal (fires before beforeunload)
+  window.api?.onBeforeQuit?.(() => {
+    goOfflineSync();
   });
 
 })();

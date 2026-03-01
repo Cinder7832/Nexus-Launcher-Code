@@ -1935,6 +1935,13 @@ if (!gotTheLock) {
 
 app.on("before-quit", () => {
   isQuitting = true; // allow real quit (don’t hide to tray)
+
+  // Signal the renderer to go offline before the window closes
+  try {
+    if (win && !win.isDestroyed() && win.webContents) {
+      win.webContents.send("app-before-quit");
+    }
+  } catch {}
 });
 
 // --------------------

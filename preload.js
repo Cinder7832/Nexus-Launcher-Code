@@ -96,5 +96,8 @@ contextBridge.exposeInMainWorld("api", {
   // ✅ Announcements (notification bell)
   getAnnouncements: (opts) => ipcRenderer.invoke("get-announcements", opts),
   getAnnouncementsSeen: () => ipcRenderer.invoke("get-announcements-seen"),
-  setAnnouncementsSeen: (seen) => ipcRenderer.invoke("set-announcements-seen", seen)
+  setAnnouncementsSeen: (seen) => ipcRenderer.invoke("set-announcements-seen", seen),
+
+  // ✅ App lifecycle
+  onBeforeQuit: (cb) => ipcRenderer.on("app-before-quit", () => cb())
 });
