@@ -191,7 +191,7 @@
 
       /* Search bar: preferred width but allowed to shrink at high DPI */
       .nxStorePage .storeTop .searchWrap{
-        flex: 1 1 min(560px, 44vw);
+        flex: 0 1 min(560px, 44vw);
         width: min(560px, 44vw);
         min-width: 200px;
         margin-left: auto;
