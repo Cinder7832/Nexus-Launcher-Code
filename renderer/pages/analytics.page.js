@@ -515,6 +515,124 @@
         line-height: 1.35;
       }
 
+      /* ---- Badge tier cards ---- */
+      .nxBadgesRow{
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        min-width: 0;
+      }
+      @media (max-width: 640px){
+        .nxBadgesRow{ grid-template-columns: 1fr; }
+      }
+
+      .nxBadgeCard{
+        position: relative;
+        overflow: hidden;
+        border-radius: 20px;
+        padding: 16px 16px 14px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        min-width: 0;
+        isolation: isolate;
+      }
+
+      /* Soft inner highlight for all badge cards */
+      .nxBadgeCard::after{
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        background: radial-gradient(120% 140% at 20% 0%, rgba(255,255,255,.10), rgba(255,255,255,0) 60%);
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      .nxBadgeCard > *{ position: relative; z-index: 1; }
+
+      /* Bronze */
+      .nxBadgeCard.nxBronze{
+        background: linear-gradient(135deg, rgba(205,127,50,.14), rgba(205,127,50,.06));
+        border: 1px solid rgba(205,127,50,.22);
+        box-shadow: 0 18px 50px rgba(205,127,50,.08);
+      }
+      /* Silver */
+      .nxBadgeCard.nxSilver{
+        background: linear-gradient(135deg, rgba(192,192,210,.14), rgba(192,192,210,.06));
+        border: 1px solid rgba(192,192,210,.22);
+        box-shadow: 0 18px 50px rgba(192,192,210,.08);
+      }
+      /* Gold */
+      .nxBadgeCard.nxGold{
+        background: linear-gradient(135deg, rgba(255,215,0,.14), rgba(255,215,0,.06));
+        border: 1px solid rgba(255,215,0,.22);
+        box-shadow: 0 18px 50px rgba(255,215,0,.08);
+      }
+
+      .nxBadgeIcon{
+        width: 44px;
+        height: 44px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+      }
+      .nxBadgeIcon svg{
+        width: 26px;
+        height: 26px;
+        fill: none;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .nxBronze .nxBadgeIcon{ background: rgba(205,127,50,.18); }
+      .nxBronze .nxBadgeIcon svg{ stroke: #cd7f32; }
+      .nxSilver .nxBadgeIcon{ background: rgba(192,192,210,.18); }
+      .nxSilver .nxBadgeIcon svg{ stroke: #c0c0d2; }
+      .nxGold .nxBadgeIcon{ background: rgba(255,215,0,.18); }
+      .nxGold .nxBadgeIcon svg{ stroke: #ffd700; }
+
+      .nxBadgeInfo{ min-width: 0; flex: 1 1 auto; }
+      .nxBadgeTier{
+        font-weight: 950;
+        font-size: 14px;
+        letter-spacing: .1px;
+      }
+      .nxBronze .nxBadgeTier{ color: #cd7f32; }
+      .nxSilver .nxBadgeTier{ color: #c0c0d2; }
+      .nxGold .nxBadgeTier{ color: #ffd700; }
+
+      .nxBadgeCount{
+        margin-top: 4px;
+        font-weight: 850;
+        font-size: 22px;
+        letter-spacing: -0.3px;
+        color: rgba(255,255,255,.92);
+      }
+      .nxBadgeRange{
+        margin-top: 4px;
+        font-weight: 750;
+        font-size: 12px;
+        color: rgba(255,255,255,.50);
+      }
+
+      /* Badge dot next to dev name in top chart */
+      .nxTierDot{
+        display: inline-block;
+        width: 9px;
+        height: 9px;
+        border-radius: 999px;
+        margin-right: 7px;
+        vertical-align: middle;
+        flex: 0 0 auto;
+        box-shadow: 0 0 6px currentColor;
+      }
+      .nxTierDot.nxDotBronze{ background: #cd7f32; color: rgba(205,127,50,.5); }
+      .nxTierDot.nxDotSilver{ background: #c0c0d2; color: rgba(192,192,210,.5); }
+      .nxTierDot.nxDotGold{ background: #ffd700; color: rgba(255,215,0,.5); }
+
       @media (prefers-reduced-motion: reduce){
         .nxAnimate .nxBarFill{ transition: none !important; }
         .nxAnimate .nxDistBar{ transition: none !important; }
@@ -570,6 +688,27 @@
     list.sort((a, b) => (b.count - a.count) || a.dev.localeCompare(b.dev));
     return list;
   }
+
+  // Badge tier helper
+  function getBadgeTier(gameCount) {
+    const n = Number(gameCount || 0);
+    if (n >= 5) return "gold";
+    if (n >= 3) return "silver";
+    return "bronze";
+  }
+
+  function computeBadgeTiers(devList) {
+    let bronze = 0, silver = 0, gold = 0;
+    for (const d of devList) {
+      const tier = getBadgeTier(d.count);
+      if (tier === "gold") gold++;
+      else if (tier === "silver") silver++;
+      else bronze++;
+    }
+    return { bronze, silver, gold };
+  }
+
+  const BADGE_MEDAL_SVG = `<svg viewBox="0 0 24 24"><circle cx="12" cy="9" r="6"/><path d="M8.5 14.5L7 22l5-3 5 3-1.5-7.5"/></svg>`;
 
   function computeDistribution(devList) {
     // buckets: 1, 2, 3, 4, 5+
@@ -628,6 +767,8 @@
     const avg = totalDevs ? totalGames / totalDevs : 0;
     const dist = computeDistribution(devList);
 
+    const tiers = computeBadgeTiers(devList);
+
     wrap.innerHTML = `
       <div class="nxAna" id="nxAnaRoot">
         <div class="nxOverview">
@@ -653,6 +794,33 @@
             <div class="nxMiniLabel">Top developer</div>
             <div class="nxMiniValue" title="${topDev?.dev || "—"}">${topDev?.dev ? topDev.dev : "—"}</div>
             <div class="nxMiniSub">${topDev?.count ? `${topDev.count} game${topDev.count === 1 ? "" : "s"}` : ""}</div>
+          </div>
+        </div>
+
+        <div class="nxBadgesRow">
+          <div class="nxBadgeCard nxBronze">
+            <div class="nxBadgeIcon">${BADGE_MEDAL_SVG}</div>
+            <div class="nxBadgeInfo">
+              <div class="nxBadgeTier">Bronze</div>
+              <div class="nxBadgeCount">${tiers.bronze}</div>
+              <div class="nxBadgeRange">1–2 games</div>
+            </div>
+          </div>
+          <div class="nxBadgeCard nxSilver">
+            <div class="nxBadgeIcon">${BADGE_MEDAL_SVG}</div>
+            <div class="nxBadgeInfo">
+              <div class="nxBadgeTier">Silver</div>
+              <div class="nxBadgeCount">${tiers.silver}</div>
+              <div class="nxBadgeRange">3–4 games</div>
+            </div>
+          </div>
+          <div class="nxBadgeCard nxGold">
+            <div class="nxBadgeIcon">${BADGE_MEDAL_SVG}</div>
+            <div class="nxBadgeInfo">
+              <div class="nxBadgeTier">Gold</div>
+              <div class="nxBadgeCount">${tiers.gold}</div>
+              <div class="nxBadgeRange">5+ games</div>
+            </div>
           </div>
         </div>
 
@@ -738,12 +906,15 @@
       topChartEl.innerHTML = "";
       for (const r of top) {
         const pct = (r.count / max) * 100;
+        const tier = getBadgeTier(r.count);
+        const dotClass = tier === "gold" ? "nxDotGold" : tier === "silver" ? "nxDotSilver" : "nxDotBronze";
+        const tierLabel = tier.charAt(0).toUpperCase() + tier.slice(1);
         const row = document.createElement("div");
         row.className = "nxBarRow";
         row.innerHTML = `
           <div style="min-width:0;">
-            <div class="nxDevName" title="${r.dev}">${r.dev}</div>
-            <div class="nxDevMeta">${r.count} game${r.count === 1 ? "" : "s"}</div>
+            <div class="nxDevName" title="${r.dev}"><span class="nxTierDot ${dotClass}" title="${tierLabel}"></span>${r.dev}</div>
+            <div class="nxDevMeta">${r.count} game${r.count === 1 ? "" : "s"} · ${tierLabel}</div>
           </div>
           <div class="nxBarTrack" aria-label="${r.dev}: ${r.count}">
             <div class="nxBarFill" data-w="${pct.toFixed(2)}"></div>
