@@ -1182,27 +1182,6 @@ async function pushStoreIfChanged() {
 }
 
 // --------------------
-// ✅ YouTube video in child BrowserWindow (avoids embed/origin issues)
-// --------------------
-ipcMain.handle("open-youtube-video", (_evt, youtubeId, title) => {
-  if (!youtubeId || !win || win.isDestroyed()) return;
-  const videoWin = new BrowserWindow({
-    parent: win,
-    width: 960,
-    height: 580,
-    title: String(title || "Video"),
-    backgroundColor: "#000000",
-    autoHideMenuBar: true,
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false
-    }
-  });
-  videoWin.setMenuBarVisibility(false);
-  videoWin.loadURL(`https://www.youtube.com/embed/${encodeURIComponent(youtubeId)}?autoplay=1&rel=0`);
-});
-
-// --------------------
 // ✅ Disk / size IPC
 // --------------------
 ipcMain.handle("nx:get-disk-free-bytes", async (_evt, installPath) => {

@@ -646,6 +646,17 @@ async function applyGridFromSettings() {
     } catch { return ""; }
   }
 
+  function isRecentlyAdded(game) {
+    const raw = game?.dateAdded;
+    if (!raw) return false;
+    try {
+      const added = new Date(raw).getTime();
+      if (isNaN(added)) return false;
+      const sevenDays = 7 * 24 * 60 * 60 * 1000;
+      return (Date.now() - added) <= sevenDays;
+    } catch { return false; }
+  }
+
   // --------------------------
   // ✅ Collections styles
   // --------------------------
@@ -936,6 +947,40 @@ async function applyGridFromSettings() {
         background: rgba(255,255,255,.35);
       }
 
+      /* NEW badge for recently added games */
+      .nxNewBadge{
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        padding: 5px 10px;
+        border-radius: 8px;
+        background: linear-gradient(135deg, rgba(124,92,255,.85), rgba(168,85,247,.85));
+        border: 1px solid rgba(255,255,255,.18);
+        backdrop-filter: blur(6px);
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: .6px;
+        text-transform: uppercase;
+        color: #fff;
+        z-index: 4;
+        pointer-events: none;
+        box-shadow: 0 4px 16px rgba(124,92,255,.35);
+      }
+      @keyframes nxNewPulse {
+        0%, 100% { box-shadow: 0 4px 16px rgba(124,92,255,.35); }
+        50%      { box-shadow: 0 4px 22px rgba(124,92,255,.55); }
+      }
+      .nxNewBadge{ animation: nxNewPulse 2.5s ease-in-out infinite; }
+
+      /* NEW badge inside spotlight */
+      .nxCollSpotlight .nxNewBadge{
+        top: 16px;
+        left: 16px;
+        padding: 6px 14px;
+        font-size: 12px;
+        border-radius: 10px;
+      }
+
       /* View-switch crossfade */
       @keyframes nxFadeIn {
         from { opacity: 0; transform: translateY(8px); }
@@ -1083,10 +1128,13 @@ async function applyGridFromSettings() {
       const videos = getGameVideos(game);
       const videoUrl = videos.length > 0 ? toImg(videos[0]) : "";
 
+      const isNew = isRecentlyAdded(game);
+
       mount.innerHTML = `
         <div class="nxCollSpotlight" data-game-id="${game.id}" ${videoUrl ? `data-video-url="${videoUrl}"` : ""}>
           <div class="nxCollSpotlightImg" style="background-image:url('${heroImg}')"></div>
           <div class="nxCollSpotlightOverlay"></div>
+          ${isNew ? `<div class="nxNewBadge">New</div>` : ""}
           <div class="nxCollSpotlightInfo">
             <span class="nxCollSpotlightBadge">v${game.version || "0.0.0"}</span>
             <h2 class="nxCollSpotlightName">${game.name || "Game"}</h2>
@@ -1222,9 +1270,12 @@ async function applyGridFromSettings() {
     if (isInstalled && upd) { btnText = "Update"; btnDisabled = false; }
     else if (isInstalled) { btnText = "Installed"; btnDisabled = true; }
 
+    const isNew = isRecentlyAdded(game);
+
     tile.innerHTML = `
       <div class="tileImage" style="background-image:url('${toImg(cover)}')"></div>
       <div class="tileOverlay"></div>
+      ${isNew ? `<div class="nxNewBadge">New</div>` : ""}
       ${videoUrl ? `<div class="nxCollCardPlayBadge"><svg viewBox="0 0 24 24"><polygon points="6,3 20,12 6,21"/></svg></div>` : ""}
       <div class="tileInfo">
         <div class="tileBadge">v${game.version || "0.0.0"}</div>
@@ -1734,9 +1785,12 @@ async function applyGridFromSettings() {
 
         const cover = game.imageUrl || game.image || game.cover || game.coverUrl || "";
 
+        const isNew = isRecentlyAdded(game);
+
         tile.innerHTML = `
           <div class="tileImage" style="background-image:url('${toImg(cover)}')"></div>
           <div class="tileOverlay"></div>
+          ${isNew ? `<div class="nxNewBadge">New</div>` : ""}
           <div class="tileInfo">
             <div class="tileBadge">v${game.version || "0.0.0"}</div>
             <div class="tileName">${game.name || "Game"}</div>

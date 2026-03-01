@@ -1342,11 +1342,11 @@
           try {
             localStorage.setItem(LIB_LOCKED_KEY, "[]");
             if (typeof window.showToast === "function") {
-              window.showToast(`Unlocked ${count} game${count > 1 ? "s" : ""}.`, "success");
+              window.showToast(`Unlocked ${count} game${count > 1 ? "s" : ""}`, "success");
             }
           } catch {
             if (typeof window.showToast === "function") {
-              window.showToast("Failed to unlock games.", "error");
+              window.showToast("Failed to unlock games", "error");
             }
           }
           close();
