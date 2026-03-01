@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="styles/store.css" />
   <link rel="stylesheet" href="styles/animations.css" />
   <link rel="stylesheet" href="styles/downloads.css" />
+  <link rel="stylesheet" href="styles/friends.css" />
 </head>
 <body>
   <div id="app">
@@ -67,6 +68,19 @@
           </span>
           <span>Downloads</span>
           <span class="navBadge" id="downloadsBadge" style="display:none;">0</span>
+        </button>
+
+        <button class="navBtn" data-page="friends" type="button">
+          <span class="navIcon" aria-hidden="true">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+          </span>
+          <span>Friends</span>
+          <span class="nxFrSidebarBadge" id="friendsBadge" style="display:none;">0</span>
         </button>
 
         <button class="navBtn" data-page="analytics" type="button">
@@ -202,6 +216,7 @@
   <script src="pages/library.page.js"></script>
   <script src="pages/downloads.page.js"></script>
   <script src="pages/analytics.page.js"></script>
+  <script src="pages/friends.page.js"></script>
   <script src="pages/settings.page.js"></script>
   <script src="pages/details.page.js"></script>
 </body>

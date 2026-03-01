@@ -2785,56 +2785,85 @@ box-shadow: 0 14px 34px rgba(255,60,90,.10);
     return data?.user || null;
   }
 
-  // ✅ Local display name (no profiles table)
-  function nameStorageKey(userId) {
-    return `nx.comments.display_name.${String(userId || "unknown")}`;
-  }
-
-  function getLocalDisplayName(userId) {
-    try {
-      const v = localStorage.getItem(nameStorageKey(userId));
-      return String(v || "").trim();
-    } catch {
-      return "";
-    }
-  }
-
-  function setLocalDisplayName(userId, name) {
-    try {
-      localStorage.setItem(nameStorageKey(userId), String(name || "").trim());
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  function ensureLocalDisplayNameForUser(user) {
+  // ✅ Profile-based display name (synced with Friends system via profiles table)
+  async function ensureProfileDisplayName(sb, user) {
     const uid = String(user?.id || "");
     if (!uid) return "Anonymous";
 
-    let cur = getLocalDisplayName(uid);
-    cur = normalizeDisplayName(cur);
-    if (cur) return cur;
+    // Check shared cache first
+    if (window.__nxCachedProfile && window.__nxCachedProfile.id === uid) {
+      return window.__nxCachedProfile.display_name || window.__nxCachedProfile.username || "Anonymous";
+    }
 
-    const fresh = makePseudo();
-    setLocalDisplayName(uid, fresh);
-    return fresh;
+    // Try to load from profiles table
+    try {
+      const { data, error } = await sb.from("profiles").select("*").eq("id", uid).single();
+      if (!error && data) {
+        window.__nxCachedProfile = data;
+        return data.display_name || data.username || "Anonymous";
+      }
+    } catch {}
+
+    // No profile exists — auto-create one with a pseudo name
+    const pseudo = makePseudo();
+    const handle = pseudo.toLowerCase().replace(/[^a-z0-9_\-\.]/g, "").slice(0, 20);
+    try {
+      const { data, error } = await sb.from("profiles").upsert({
+        id: uid,
+        username: handle,
+        display_name: pseudo,
+        is_online: true,
+        last_seen: new Date().toISOString()
+      }, { onConflict: "id" }).select().single();
+
+      if (!error && data) {
+        window.__nxCachedProfile = data;
+        return data.display_name || pseudo;
+      }
+    } catch {}
+
+    // Fallback to localStorage (backwards compat)
+    const lsKey = `nx.comments.display_name.${uid}`;
+    let lsName = "";
+    try { lsName = String(localStorage.getItem(lsKey) || "").trim(); } catch {}
+    if (!lsName) {
+      lsName = pseudo;
+      try { localStorage.setItem(lsKey, lsName); } catch {}
+    }
+    return lsName;
   }
 
-  // ✅ Optional: update all your old comments to match new name
+  // ✅ Update display name in profiles table + all old comments
   async function updateMyDisplayNameEverywhere(sb, user, displayName) {
     const uid = String(user?.id || "");
     if (!uid) return;
 
-    const { error } = await sb
-      .from(COMMENTS_TABLE)
-      .update({ display_name: String(displayName) })
-      .eq("user_id", uid);
-
-    if (error) {
-      // Not fatal — name will still work for new comments
-      console.warn("[Comments] Could not update old comments display_name:", error);
+    // Update all old comments
+    try {
+      await sb.from(COMMENTS_TABLE)
+        .update({ display_name: String(displayName) })
+        .eq("user_id", uid);
+    } catch (e) {
+      console.warn("[Comments] Could not update old comments display_name:", e);
     }
+
+    // Update profiles table (syncs with Friends system)
+    try {
+      const { data, error } = await sb.from("profiles")
+        .update({ display_name: String(displayName) })
+        .eq("id", uid)
+        .select()
+        .single();
+
+      if (!error && data) {
+        window.__nxCachedProfile = data;
+      }
+    } catch (e) {
+      console.warn("[Comments] Could not update profile display_name:", e);
+    }
+
+    // Sync localStorage fallback
+    try { localStorage.setItem(`nx.comments.display_name.${uid}`, String(displayName)); } catch {}
   }
 
   function teardownCommentsRealtime(sb) {
@@ -3165,13 +3194,13 @@ box-shadow: 0 14px 34px rgba(255,60,90,.10);
       return;
     }
 
-    // Ensure auth + local display name
+    // Ensure auth + profile-based display name
     let user = null;
     let displayName = "Anonymous";
 
     try {
       user = await ensureSignedIn(sb);
-      displayName = ensureLocalDisplayNameForUser(user);
+      displayName = await ensureProfileDisplayName(sb, user);
     } catch (e) {
       console.error(e);
       wrap.innerHTML = `
@@ -3535,10 +3564,9 @@ box-shadow: 0 14px 34px rgba(255,60,90,.10);
       setBusy(true);
       try {
         displayName = next;
-        setLocalDisplayName(myId, next);
         if (nameEl) nameEl.textContent = next;
 
-        // update existing comments to show new name everywhere
+        // update profiles table + existing comments to show new name everywhere
         await updateMyDisplayNameEverywhere(sb, user, next);
 
         toast("Updated name", "success");

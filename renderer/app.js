@@ -185,6 +185,16 @@ const templates = {
     <div id="downloadsWrap"></div>
   `,
 
+  friends: `
+    <div class="simpleTop">
+      <h1 class="title">Friends</h1>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="nxFriends" id="friendsWrap"></div>
+  `,
+
   analytics: `
     <div class="simpleTop">
       <h1 class="title">Analytics</h1>
@@ -325,6 +335,7 @@ async function runRenderer(page) {
   if (page === "store") return await window.renderStore?.();
   if (page === "library") return await window.renderLibrary?.();
   if (page === "downloads") return await window.renderDownloads?.();
+  if (page === "friends") return await window.renderFriends?.();
   if (page === "analytics") return await window.renderAnalytics?.();
   if (page === "settings") return await window.renderSettings?.();
   if (page === "details") return await window.renderDetails?.();
@@ -353,7 +364,7 @@ function requestRefreshCurrentPage(delay = 120) {
         return;
       }
 
-      if (["store", "library", "details", "settings", "analytics"].includes(window.__currentPage)) {
+      if (["store", "library", "details", "settings", "analytics", "friends"].includes(window.__currentPage)) {
         await runRenderer(window.__currentPage);
       }
     } catch (e) {
