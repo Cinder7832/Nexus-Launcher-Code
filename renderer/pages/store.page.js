@@ -840,8 +840,22 @@ async function applyGridFromSettings() {
         border: 1px solid rgba(255,255,255,.06);
         box-shadow: 0 24px 60px rgba(0,0,0,.35);
         transition:
+          opacity .45s ease,
           box-shadow .45s cubic-bezier(.2,.9,.2,1),
           filter .45s ease;
+      }
+      .nxCollSpotlight.nxFading{
+        opacity: 0;
+      }
+      .nxCollSpotlight.nxOld{
+        position: absolute;
+        top: 0; left: 0;
+        z-index: 0;
+        pointer-events: none;
+      }
+      .nxCollSpotlight.nxNew{
+        position: relative;
+        z-index: 1;
       }
       .nxCollSpotlight:hover{
         box-shadow: 0 34px 90px rgba(0,0,0,.55);
@@ -1118,10 +1132,13 @@ async function applyGridFromSettings() {
   function renderSpotlight(mount, games, installed) {
     let currentIdx = 0;
     let autoTimer = null;
+    let transitioning = false;
 
-    function buildSpotlight() {
-      const game = games[currentIdx];
-      if (!game) return;
+    mount.style.position = "relative";
+
+    function createSpotlightEl(idx) {
+      const game = games[idx];
+      if (!game) return null;
 
       const heroImg = getCollectionCardImage(game);
       const devs = getGameDevelopers(game);
@@ -1133,7 +1150,8 @@ async function applyGridFromSettings() {
 
       const isNew = isRecentlyAdded(game);
 
-      mount.innerHTML = `
+      const wrapper = document.createElement("div");
+      wrapper.innerHTML = `
         <div class="nxCollSpotlight" data-game-id="${game.id}" ${videoUrl ? `data-video-url="${videoUrl}"` : ""}>
           <div class="nxCollSpotlightImg" style="background-image:url('${heroImg}')"></div>
           <div class="nxCollSpotlightOverlay"></div>
@@ -1146,73 +1164,102 @@ async function applyGridFromSettings() {
           </div>
           ${games.length > 1 ? `
             <div class="nxCollSpotlightDots">
-              ${games.map((_, i) => `<button class="nxCollSpotlightDot${i === currentIdx ? " active" : ""}" data-idx="${i}" type="button"></button>`).join("")}
+              ${games.map((_, i) => `<button class="nxCollSpotlightDot${i === idx ? " active" : ""}" data-idx="${i}" type="button"></button>`).join("")}
             </div>
           ` : ""}
         </div>
       `;
+      const spotEl = wrapper.firstElementChild;
 
-      const spotEl = mount.querySelector(".nxCollSpotlight");
-      if (spotEl) {
-        spotEl.addEventListener("click", (e) => {
-          if (e.target.closest(".nxCollSpotlightDot")) return;
-          window.__rememberPageScroll?.("store");
-          window.__restoreScrollForPage = "store";
-          window.__selectedGame = game;
-          window.__previousPage = "store";
-          window.loadPage("details");
+      spotEl.addEventListener("click", (e) => {
+        if (e.target.closest(".nxCollSpotlightDot")) return;
+        window.__rememberPageScroll?.("store");
+        window.__restoreScrollForPage = "store";
+        window.__selectedGame = game;
+        window.__previousPage = "store";
+        window.loadPage("details");
+      });
+
+      spotEl.querySelectorAll(".nxCollSpotlightDot").forEach((dot) => {
+        dot.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const dotIdx = Number(dot.dataset.idx);
+          if (isNaN(dotIdx) || dotIdx === currentIdx || transitioning) return;
+          transitionTo(dotIdx);
+          resetAutoRotate();
+        });
+      });
+
+      if (videoUrl) {
+        let videoTimer = null;
+        let videoWrap = null;
+
+        spotEl.addEventListener("mouseenter", () => {
+          videoTimer = setTimeout(() => {
+            const video = document.createElement("video");
+            video.src = videoUrl;
+            video.autoplay = true;
+            video.muted = true;
+            video.loop = true;
+            video.playsInline = true;
+            video.style.width = "100%";
+            video.style.height = "100%";
+            video.style.objectFit = "cover";
+            video.style.pointerEvents = "none";
+            videoWrap = document.createElement("div");
+            videoWrap.className = "nxCollSpotlightVideoWrap";
+            videoWrap.appendChild(video);
+            spotEl.insertBefore(videoWrap, spotEl.querySelector(".nxCollSpotlightOverlay"));
+          }, 1000);
         });
 
-        // Dot navigation
-        spotEl.querySelectorAll(".nxCollSpotlightDot").forEach((dot) => {
-          dot.addEventListener("click", (e) => {
-            e.stopPropagation();
-            const idx = Number(dot.dataset.idx);
-            if (isNaN(idx) || idx === currentIdx) return;
-            currentIdx = idx;
-            buildSpotlight();
-            resetAutoRotate();
-          });
+        spotEl.addEventListener("mouseleave", () => {
+          clearTimeout(videoTimer);
+          if (videoWrap) { videoWrap.remove(); videoWrap = null; }
         });
-
-        // Video autoplay on hover
-        if (videoUrl) {
-          let videoTimer = null;
-          let videoWrap = null;
-
-          spotEl.addEventListener("mouseenter", () => {
-            videoTimer = setTimeout(() => {
-              const video = document.createElement("video");
-              video.src = videoUrl;
-              video.autoplay = true;
-              video.muted = true;
-              video.loop = true;
-              video.playsInline = true;
-              video.style.width = "100%";
-              video.style.height = "100%";
-              video.style.objectFit = "cover";
-              video.style.pointerEvents = "none";
-              videoWrap = document.createElement("div");
-              videoWrap.className = "nxCollSpotlightVideoWrap";
-              videoWrap.appendChild(video);
-              spotEl.insertBefore(videoWrap, spotEl.querySelector(".nxCollSpotlightOverlay"));
-            }, 1000);
-          });
-
-          spotEl.addEventListener("mouseleave", () => {
-            clearTimeout(videoTimer);
-            if (videoWrap) { videoWrap.remove(); videoWrap = null; }
-          });
-        }
       }
+
+      return spotEl;
+    }
+
+    function buildSpotlight() {
+      mount.innerHTML = "";
+      const el = createSpotlightEl(currentIdx);
+      if (el) mount.appendChild(el);
+    }
+
+    function transitionTo(idx) {
+      if (transitioning) return;
+      transitioning = true;
+
+      const oldSpot = mount.querySelector(".nxCollSpotlight:not(.nxOld)");
+      currentIdx = idx;
+      const newSpot = createSpotlightEl(idx);
+      if (!newSpot) { transitioning = false; return; }
+
+      newSpot.classList.add("nxNew", "nxFading");
+      mount.appendChild(newSpot);
+
+      if (oldSpot) {
+        oldSpot.classList.add("nxOld");
+      }
+
+      newSpot.offsetHeight;
+      newSpot.classList.remove("nxFading");
+
+      setTimeout(() => {
+        if (oldSpot && oldSpot.parentNode) oldSpot.remove();
+        newSpot.classList.remove("nxNew");
+        transitioning = false;
+      }, 480);
     }
 
     function resetAutoRotate() {
       clearInterval(autoTimer);
       if (games.length > 1) {
         autoTimer = setInterval(() => {
-          currentIdx = (currentIdx + 1) % games.length;
-          buildSpotlight();
+          const nextIdx = (currentIdx + 1) % games.length;
+          transitionTo(nextIdx);
         }, 7000);
       }
     }
