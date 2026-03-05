@@ -302,7 +302,13 @@
 
   function updateSidebarBadge() {
     const badge = document.getElementById("friendsBadge");
-    if (badge) {
+    if (!badge) return;
+    const count = totalUnread();
+    if (count > 0) {
+      badge.textContent = count > 99 ? "99+" : String(count);
+      badge.classList.add("visible");
+      badge.style.display = "";
+    } else {
       badge.textContent = "";
       badge.classList.remove("visible");
       badge.style.display = "none";
@@ -411,6 +417,7 @@
       if (unreadCounts[friendId]) {
         delete unreadCounts[friendId];
         updateSidebarBadge();
+        updateFriendUnreadBadge(friendId);
       }
     }
 
@@ -576,18 +583,16 @@
   function updateFriendUnreadBadge(friendId) {
     const item = document.querySelector(`.nxFrItem[data-friend-id="${friendId}"]`);
     if (!item) return;
-    const meta = item.querySelector(".nxFrItemMeta");
-    if (!meta) return;
-    // Remove old badge first
-    const old = meta.querySelector(".nxFrUnreadBadge");
+    const avatar = item.querySelector(".nxFrAvatar");
+    if (!avatar) return;
+    const old = avatar.querySelector(".nxFrUnreadBadge");
     if (old) old.remove();
-    // Add updated badge if there are unread messages
     const count = unreadCounts[friendId] || 0;
     if (count > 0) {
       const badge = document.createElement("span");
       badge.className = "nxFrUnreadBadge";
       badge.textContent = count > 99 ? "99+" : String(count);
-      meta.appendChild(badge);
+      avatar.appendChild(badge);
     }
   }
 
@@ -861,6 +866,11 @@
           .map(m => m.id);
         if (unreadIds.length) {
           try { await client.from("messages").update({ is_read: true }).in("id", unreadIds); } catch {}
+          if (unreadCounts[friendId]) {
+            delete unreadCounts[friendId];
+            updateSidebarBadge();
+            updateFriendUnreadBadge(friendId);
+          }
         }
       }
 
@@ -1247,18 +1257,16 @@
           <div class="nxFrAvatar">
             ${avatarLetter(p.display_name || p.username)}
             <div class="nxFrOnlineDot ${online ? "online" : "offline"}"></div>
+            ${unread > 0 ? `<span class="nxFrUnreadBadge">${unread > 99 ? "99+" : unread}</span>` : ""}
           </div>
           <div class="nxFrInfo">
             <div class="nxFrName">${escapeHtml(p.display_name || p.username)}</div>
             <div class="nxFrStatus ${playing ? "playing" : ""}">${statusText}</div>
           </div>
           <div class="nxFrItemMeta">
-            ${unread > 0 ? `<span class="nxFrUnreadBadge">${unread > 99 ? "99+" : unread}</span>` : ""}
-            <div class="nxFrKebabWrap">
-              <button class="nxFrKebab" data-action="kebab" data-friendship-id="${escapeHtml(f.id)}" data-friend-id="${escapeHtml(p.id)}" data-friend-name="${escapeHtml(p.display_name || p.username)}" type="button" title="More options">
-                <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"></circle><circle cx="12" cy="12" r="1.5"></circle><circle cx="12" cy="19" r="1.5"></circle></svg>
-              </button>
-            </div>
+            <button class="nxFrKebab" data-action="kebab" data-friendship-id="${escapeHtml(f.id)}" data-friend-id="${escapeHtml(p.id)}" data-friend-name="${escapeHtml(p.display_name || p.username)}" type="button" title="More options">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"></circle><circle cx="12" cy="12" r="1.5"></circle><circle cx="12" cy="19" r="1.5"></circle></svg>
+            </button>
           </div>
         </div>
       `;
@@ -1384,8 +1392,13 @@
     let html = "";
     for (const m of chatMessages) {
       const isMine = m.sender_id === uid;
+      const isTemp = String(m.id).startsWith("temp-");
+      const deleteBtn = isMine && !isTemp
+        ? `<button class="nxFrMsgDeleteBtn" data-delete-msg-id="${escapeHtml(m.id)}" title="Delete message" type="button"><svg viewBox="0 0 24 24"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg></button>`
+        : "";
       html += `
         <div class="nxFrMsg ${isMine ? "sent" : "received"}" data-msg-id="${escapeHtml(m.id)}">
+          ${deleteBtn}
           ${escapeHtml(m.content)}
           <div class="nxFrMsgTime">${formatTime(m.created_at)}${readReceiptHtml(m)}</div>
         </div>
@@ -1412,10 +1425,14 @@
 
     const uid = myId();
     const isMine = msg.sender_id === uid;
+    const isTemp = String(msg.id).startsWith("temp-");
+    const deleteBtn = isMine && !isTemp
+      ? `<button class="nxFrMsgDeleteBtn" data-delete-msg-id="${escapeHtml(msg.id)}" title="Delete message" type="button"><svg viewBox="0 0 24 24"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg></button>`
+      : "";
     const div = document.createElement("div");
     div.className = `nxFrMsg ${isMine ? "sent" : "received"}`;
     div.setAttribute("data-msg-id", msg.id);
-    div.innerHTML = `${escapeHtml(msg.content)}<div class="nxFrMsgTime">${formatTime(msg.created_at)}${readReceiptHtml(msg)}</div>`;
+    div.innerHTML = `${deleteBtn}${escapeHtml(msg.content)}<div class="nxFrMsgTime">${formatTime(msg.created_at)}${readReceiptHtml(msg)}</div>`;
     container.appendChild(div);
 
     if (wasNearBottom || isMine) {
@@ -1433,7 +1450,7 @@
     document.querySelectorAll(".nxFrKebabMenu").forEach(m => m.remove());
     document.querySelectorAll(".nxFrKebab.open").forEach(b => b.classList.remove("open"));
     if (_kebabCloseHandler) {
-      document.removeEventListener("click", _kebabCloseHandler);
+      window.removeEventListener("pointerdown", _kebabCloseHandler, true);
       _kebabCloseHandler = null;
     }
   }
@@ -1650,9 +1667,9 @@
           await rejectRequest(friendshipId);
           renderContent();
         } else if (action === "kebab") {
+          const wasOpen = btn.classList.contains("open");
           closeOpenKebabMenu();
-          const kebabWrap = btn.closest(".nxFrKebabWrap");
-          if (!kebabWrap) return;
+          if (wasOpen) return;
           btn.classList.add("open");
           const menu = document.createElement("div");
           menu.className = "nxFrKebabMenu";
@@ -1662,18 +1679,30 @@
               Remove friend
             </button>
           `;
-          kebabWrap.appendChild(menu);
+          const btnRect = btn.getBoundingClientRect();
+          menu.style.position = "fixed";
+          menu.style.top = (btnRect.bottom + 4) + "px";
+          menu.style.right = (window.innerWidth - btnRect.right) + "px";
+          document.body.appendChild(menu);
+          requestAnimationFrame(() => {
+            const menuRect = menu.getBoundingClientRect();
+            if (menuRect.bottom > window.innerHeight) {
+              menu.style.top = (btnRect.top - menuRect.height - 4) + "px";
+            }
+            if (menuRect.right > window.innerWidth) {
+              menu.style.right = "8px";
+            }
+          });
           menu.querySelector(".nxFrKebabMenuItem").addEventListener("click", (ev) => {
             ev.stopPropagation();
             closeOpenKebabMenu();
             showRemoveConfirmDialog(friendshipId, friendId, btn.dataset.friendName || "this friend");
           });
           _kebabCloseHandler = function (ev) {
-            if (!kebabWrap.contains(ev.target)) {
-              closeOpenKebabMenu();
-            }
+            if (menu.contains(ev.target) || btn.contains(ev.target)) return;
+            closeOpenKebabMenu();
           };
-          setTimeout(() => document.addEventListener("click", _kebabCloseHandler), 0);
+          setTimeout(() => window.addEventListener("pointerdown", _kebabCloseHandler, true), 0);
         } else if (action === "open-chat") {
           closeOpenKebabMenu();
           const friend = friendsList.find(f => f.friend.id === friendId)?.friend;
@@ -1687,9 +1716,17 @@
       });
     });
 
-    // Message context menu (right-click to delete own messages)
+    // Message delete button (hover-reveal) + right-click fallback
     const chatContainer = wrap.querySelector("#nxFrChatMessages");
     if (chatContainer) {
+      chatContainer.addEventListener("click", (e) => {
+        const deleteBtn = e.target.closest(".nxFrMsgDeleteBtn");
+        if (deleteBtn) {
+          e.stopPropagation();
+          const msgId = deleteBtn.dataset.deleteMsgId;
+          if (msgId) showDeleteMessageDialog(msgId);
+        }
+      });
       chatContainer.addEventListener("contextmenu", (e) => {
         const msgEl = e.target.closest(".nxFrMsg.sent");
         if (!msgEl) return;

@@ -221,14 +221,17 @@
 .nxFrGameLink:hover svg { opacity: 1; }
 
 /* ---- Item Meta ---- */
-.nxFrItemMeta { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
+.nxFrItemMeta { display: flex; align-items: center; flex-shrink: 0; }
 .nxFrItemTime { font-size: 11px; font-weight: 700; color: rgba(255,255,255,.30); }
 .nxFrItemTime.unread { color: rgba(124,92,255,.85); }
 .nxFrUnreadBadge {
+  position: absolute; top: -4px; right: -4px;
   display: inline-flex; align-items: center; justify-content: center;
-  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
-  background: rgba(124,92,255,.85); color: #fff; font-size: 11px; font-weight: 900;
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
+  background: rgba(124,92,255,.95); color: #fff; font-size: 10px; font-weight: 900;
+  border: 2px solid rgba(16,18,28,.95);
   animation: nxFrScaleIn .3s cubic-bezier(.22,.9,.36,1) both;
+  z-index: 2; pointer-events: none;
 }
 
 /* ---- Actions ---- */
@@ -351,6 +354,31 @@
 }
 .nxFrMsgCheck svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 2.2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .nxFrMsgCheck.read { color: rgba(124,92,255,.75); }
+
+/* ---- Message Delete Button (hover-reveal) ---- */
+.nxFrMsgDeleteBtn {
+  position: absolute; top: -10px; right: -10px;
+  width: 26px; height: 26px; border-radius: 50%;
+  border: 1px solid rgba(255,60,90,.18);
+  background: rgba(22,24,38,.95);
+  color: rgba(255,60,90,.75);
+  cursor: pointer; display: grid; place-items: center;
+  opacity: 0; pointer-events: none;
+  transition: opacity .15s ease, background .15s ease, transform .15s ease, color .15s ease;
+  z-index: 2;
+}
+.nxFrMsg.sent:hover .nxFrMsgDeleteBtn {
+  opacity: 1; pointer-events: auto;
+}
+.nxFrMsgDeleteBtn:hover {
+  background: rgba(255,60,90,.18); color: rgba(255,60,90,1);
+  transform: scale(1.12);
+}
+.nxFrMsgDeleteBtn:active { transform: scale(.92); }
+.nxFrMsgDeleteBtn svg {
+  width: 12px; height: 12px; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round; fill: none;
+}
 
 /* ---- Chat Input ---- */
 .nxFrChatInput {
@@ -489,9 +517,10 @@
 
 /* ---- Sidebar Badge ---- */
 .nxFrSidebarBadge {
-  display: none; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
-  background: rgba(255,60,90,.85); color: #fff; font-size: 11px; font-weight: 900;
+  display: none; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px;
+  background: rgba(124,92,255,.95); color: #fff; font-size: 12px; font-weight: 900;
   align-items: center; justify-content: center; margin-left: auto;
+  box-shadow: 0 4px 16px rgba(124,92,255,.25);
 }
 .nxFrSidebarBadge.visible { display: inline-flex; }
 
@@ -569,7 +598,6 @@
 .nxFrAddPopoverRow input::placeholder { color: rgba(255,255,255,.28); }
 
 /* ---- Kebab Menu ---- */
-.nxFrKebabWrap { position: relative; flex-shrink: 0; }
 .nxFrKebab {
   width: 32px; height: 32px; border-radius: 50%; border: none;
   background: transparent; color: rgba(255,255,255,.35);
@@ -584,7 +612,7 @@
 .nxFrKebab:hover { background: rgba(255,255,255,.08); color: rgba(255,255,255,.75); }
 .nxFrKebab svg { width: 18px; height: 18px; fill: currentColor; }
 .nxFrKebabMenu {
-  position: absolute; right: 0; top: 100%; z-index: 100;
+  position: fixed; z-index: 99999;
   min-width: 175px; padding: 6px;
   background: rgba(22,24,38,.97);
   border: 1px solid rgba(255,255,255,.10);
