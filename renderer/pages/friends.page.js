@@ -59,6 +59,14 @@
     return div.innerHTML;
   }
 
+  function playingStatusHtml(gameName, gameId) {
+    if (!gameName) return "";
+    if (gameId) {
+      return `Playing <span class="nxFrGameLink" data-game-id="${escapeHtml(gameId)}" title="View game page">${escapeHtml(gameName)}<svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg></span>`;
+    }
+    return `Playing ${escapeHtml(gameName)}`;
+  }
+
   // Stale-presence check: treat a profile as online only if is_online
   // AND last_seen is within 90 seconds (3× the 30-second heartbeat).
   const PRESENCE_STALE_MS = 90000;
@@ -555,10 +563,10 @@
     const statusEl = item.querySelector(".nxFrStatus");
     if (statusEl) {
       let st = "Offline";
-      if (playing) st = "Playing " + escapeHtml(profile.current_game);
+      if (playing) st = playingStatusHtml(profile.current_game, profile.current_game_id);
       else if (online) st = "Online";
       else if (profile.last_seen) st = "Last seen " + timeAgo(profile.last_seen);
-      statusEl.textContent = st;
+      statusEl.innerHTML = st;
       statusEl.classList.toggle("playing", !!playing);
     }
     const nameEl = item.querySelector(".nxFrName");
@@ -752,11 +760,12 @@
           if (statusEl) {
             const online = isOnline(updated);
             let st = "Offline";
-            if (online && updated.current_game) st = "Playing " + escapeHtml(updated.current_game);
+            if (online && updated.current_game) st = playingStatusHtml(updated.current_game, updated.current_game_id);
             else if (online) st = "Online";
             else if (updated.last_seen) st = "last seen " + timeAgo(updated.last_seen);
-            statusEl.textContent = st;
+            statusEl.innerHTML = st;
             statusEl.classList.toggle("online", online);
+            statusEl.classList.toggle("playing", !!(online && updated.current_game));
           }
           if (nameEl) nameEl.textContent = updated.display_name || updated.username || "";
           // Update sidebar item in-place
@@ -892,25 +901,67 @@
       const prevFriends = friendsList.length;
       const prevSent = pendingSent.length;
 
+      // Snapshot profile data before reload to detect game/status changes
+      const prevProfiles = {};
+      for (const f of friendsList) {
+        const p = f.friend;
+        prevProfiles[p.id] = {
+          is_online: p.is_online,
+          current_game: p.current_game,
+          current_game_id: p.current_game_id,
+          last_seen: p.last_seen
+        };
+      }
+
       await loadFriendships();
       await loadUnreadCounts();
 
-      const changed = pendingIncoming.length !== prevIncoming
+      const countChanged = pendingIncoming.length !== prevIncoming
         || friendsList.length !== prevFriends
         || pendingSent.length !== prevSent;
 
-      if (changed && window.__currentPage === "friends") {
-        // If the active chat friend was removed, close the chat
-        if (activeChatFriend) {
-          const stillFriend = friendsList.find(f => f.friend.id === activeChatFriend.id);
-          if (!stillFriend) {
-            cleanupTypingChannel();
-            activeChatFriend = null;
-            chatMessages = [];
-            stopMessagePolling();
+      if (window.__currentPage === "friends") {
+        if (countChanged) {
+          if (activeChatFriend) {
+            const stillFriend = friendsList.find(f => f.friend.id === activeChatFriend.id);
+            if (!stillFriend) {
+              cleanupTypingChannel();
+              activeChatFriend = null;
+              chatMessages = [];
+              stopMessagePolling();
+            }
+          }
+          renderContent();
+        } else {
+          // Check for profile data changes (game activity, online status)
+          for (const f of friendsList) {
+            const p = f.friend;
+            const prev = prevProfiles[p.id];
+            if (!prev) continue;
+            const profileChanged = prev.is_online !== p.is_online
+              || prev.current_game !== p.current_game
+              || prev.current_game_id !== p.current_game_id
+              || prev.last_seen !== p.last_seen;
+            if (profileChanged) {
+              updateFriendItemInPlace(p);
+              // Update chat header if this friend's chat is open
+              if (activeChatFriend && activeChatFriend.id === p.id) {
+                Object.assign(activeChatFriend, p);
+                const statusEl = document.querySelector(".nxFrChatStatus");
+                if (statusEl) {
+                  const online = isOnline(p);
+                  let st = "Offline";
+                  if (online && p.current_game) st = playingStatusHtml(p.current_game, p.current_game_id);
+                  else if (online) st = "Online";
+                  else if (p.last_seen) st = "last seen " + timeAgo(p.last_seen);
+                  statusEl.innerHTML = st;
+                  statusEl.classList.toggle("online", online);
+                  statusEl.classList.toggle("playing", !!(online && p.current_game));
+                }
+              }
+            }
           }
         }
-        renderContent();
       }
     } catch (e) {
       console.warn("[Friends] Friendship poll error:", e);
@@ -1184,7 +1235,7 @@
 
       let statusText = "Offline";
       if (online && playing) {
-        statusText = `Playing ${escapeHtml(p.current_game)}`;
+        statusText = playingStatusHtml(p.current_game, p.current_game_id);
       } else if (online) {
         statusText = "Online";
       } else if (p.last_seen) {
@@ -1273,10 +1324,11 @@
     if (!activeChatFriend) return "";
     const p = activeChatFriend;
     const online = isOnline(p);
+    const playing = online && p.current_game;
 
     let statusText = "Offline";
-    if (online && p.current_game) {
-      statusText = "Playing " + escapeHtml(p.current_game);
+    if (playing) {
+      statusText = playingStatusHtml(p.current_game, p.current_game_id);
     } else if (online) {
       statusText = "Online";
     } else if (p.last_seen) {
@@ -1291,7 +1343,7 @@
         <div class="nxFrChatAvatar">${avatarLetter(p.display_name || p.username)}</div>
         <div class="nxFrChatHeaderInfo">
           <div class="nxFrChatName">${escapeHtml(p.display_name || p.username)}</div>
-          <div class="nxFrChatStatus ${online ? "online" : ""}">${statusText}</div>
+          <div class="nxFrChatStatus ${online ? "online" : ""} ${playing ? "playing" : ""}">${statusText}</div>
         </div>
       </div>
       <div class="nxFrChatMessages" id="nxFrChatMessages">
@@ -1437,6 +1489,19 @@
       _popoverCloseHandler = null;
     }
     closeOpenKebabMenu();
+
+    // Game link click handler (delegated so it works for dynamically inserted links)
+    wrap.addEventListener("click", (e) => {
+      const gameLink = e.target.closest(".nxFrGameLink");
+      if (gameLink) {
+        e.stopPropagation();
+        e.preventDefault();
+        const gameId = gameLink.dataset.gameId;
+        if (gameId && window.showDetailsPage) {
+          window.showDetailsPage(gameId);
+        }
+      }
+    });
 
     // Copy friend code
     wrap.querySelector("#nxFrCopyCode")?.addEventListener("click", () => {

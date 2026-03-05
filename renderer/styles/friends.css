@@ -206,6 +206,19 @@
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .nxFrStatus.playing { color: rgba(46,204,113,.85); }
+.nxFrGameLink {
+  cursor: pointer; text-decoration: none;
+  border-bottom: 1px dashed rgba(46,204,113,.40);
+  transition: border-color .18s ease, color .18s ease;
+}
+.nxFrGameLink:hover { border-bottom-color: rgba(46,204,113,.80); color: rgba(46,204,113,1); }
+.nxFrGameLink svg {
+  width: 10px; height: 10px; display: inline-block; vertical-align: middle;
+  margin-left: 3px; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round; fill: none;
+  opacity: .55; transition: opacity .18s ease;
+}
+.nxFrGameLink:hover svg { opacity: 1; }
 
 /* ---- Item Meta ---- */
 .nxFrItemMeta { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
@@ -298,6 +311,7 @@
 }
 .nxFrChatStatus { font-size: 12px; font-weight: 700; color: rgba(255,255,255,.40); margin-top: 1px; }
 .nxFrChatStatus.online { color: rgba(46,204,113,.80); }
+.nxFrChatStatus.playing { color: rgba(46,204,113,.80); }
 
 /* ---- Chat Messages ---- */
 .nxFrChatMessages {
