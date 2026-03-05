@@ -17,6 +17,8 @@
   let friendTypingTimer = null;
   let myTypingTimer = null;
   let lastTypingSent = 0;
+  let msgPollInterval = null;      // polling fallback for chat messages
+  let friendPollInterval = null;   // polling fallback for friend requests / list changes
 
   // ---- Helpers ----
   function sb() { return window.sb; }
@@ -776,6 +778,145 @@
     realtimeSubs = [];
   }
 
+  // ---- Polling Fallback (ensures updates even if Realtime misses events) ----
+  function startMessagePolling() {
+    stopMessagePolling();
+    msgPollInterval = setInterval(pollMessages, 3000);
+  }
+
+  function stopMessagePolling() {
+    if (msgPollInterval) { clearInterval(msgPollInterval); msgPollInterval = null; }
+  }
+
+  async function pollMessages() {
+    if (!activeChatFriend || !myId()) return;
+    const client = sb();
+    if (!client) return;
+
+    const uid = myId();
+    const friendId = activeChatFriend.id;
+
+    try {
+      const { data } = await client
+        .from("messages")
+        .select("*")
+        .or(`and(sender_id.eq.${uid},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${uid})`)
+        .order("created_at", { ascending: true })
+        .limit(100);
+
+      if (!data) return;
+
+      const existingIds = new Set(chatMessages.filter(m => !String(m.id).startsWith("temp-")).map(m => m.id));
+      let added = false;
+
+      for (const msg of data) {
+        if (existingIds.has(msg.id)) {
+          // Check for read-receipt updates on already-known messages
+          const local = chatMessages.find(m => m.id === msg.id);
+          if (local && !local.is_read && msg.is_read) {
+            local.is_read = true;
+            const el = document.querySelector(`.nxFrMsg[data-msg-id="${msg.id}"] .nxFrMsgCheck`);
+            if (el) {
+              el.classList.add("read");
+              el.innerHTML = `<svg viewBox="0 0 24 24"><path d="M18 6L7 17l-5-5"></path><path d="M22 6L11 17"></path></svg>`;
+            }
+          }
+          continue;
+        }
+
+        // Check if this server message confirms a temp optimistic message
+        const tempIdx = chatMessages.findIndex(m =>
+          String(m.id).startsWith("temp-") &&
+          m.content === msg.content &&
+          m.receiver_id === msg.receiver_id
+        );
+        if (tempIdx >= 0) {
+          chatMessages[tempIdx] = msg;
+          const els = document.querySelectorAll("#nxFrChatMessages .nxFrMsg");
+          if (els[tempIdx]) {
+            els[tempIdx].setAttribute("data-msg-id", msg.id);
+            const timeEl = els[tempIdx].querySelector(".nxFrMsgTime");
+            if (timeEl) timeEl.innerHTML = `${formatTime(msg.created_at)}${readReceiptHtml(msg)}`;
+          }
+        } else {
+          chatMessages.push(msg);
+          appendChatMessage(msg);
+          added = true;
+        }
+      }
+
+      // Mark new incoming messages as read
+      if (added) {
+        const unreadIds = data
+          .filter(m => m.receiver_id === uid && !m.is_read && !existingIds.has(m.id))
+          .map(m => m.id);
+        if (unreadIds.length) {
+          try { await client.from("messages").update({ is_read: true }).in("id", unreadIds); } catch {}
+        }
+      }
+
+      // Detect deleted messages
+      const serverIds = new Set(data.map(m => m.id));
+      const toRemove = chatMessages.filter(m => !String(m.id).startsWith("temp-") && !serverIds.has(m.id));
+      for (const del of toRemove) {
+        const idx = chatMessages.findIndex(m => m.id === del.id);
+        if (idx >= 0) {
+          chatMessages.splice(idx, 1);
+          const el = document.querySelector(`.nxFrMsg[data-msg-id="${del.id}"]`);
+          if (el) el.remove();
+        }
+      }
+
+      if (toRemove.length && !chatMessages.length) {
+        const container = document.getElementById("nxFrChatMessages");
+        if (container) container.innerHTML = `<div class="nxFrEmpty" style="padding:20px;">No messages yet. Say hi!</div>`;
+      }
+    } catch (e) {
+      console.warn("[Friends] Message poll error:", e);
+    }
+  }
+
+  function startFriendshipPolling() {
+    stopFriendshipPolling();
+    friendPollInterval = setInterval(pollFriendships, 5000);
+  }
+
+  function stopFriendshipPolling() {
+    if (friendPollInterval) { clearInterval(friendPollInterval); friendPollInterval = null; }
+  }
+
+  async function pollFriendships() {
+    if (!myId()) return;
+    try {
+      const prevIncoming = pendingIncoming.length;
+      const prevFriends = friendsList.length;
+      const prevSent = pendingSent.length;
+
+      await loadFriendships();
+      await loadUnreadCounts();
+
+      const changed = pendingIncoming.length !== prevIncoming
+        || friendsList.length !== prevFriends
+        || pendingSent.length !== prevSent;
+
+      if (changed && window.__currentPage === "friends") {
+        // If the active chat friend was removed, close the chat
+        if (activeChatFriend) {
+          const stillFriend = friendsList.find(f => f.friend.id === activeChatFriend.id);
+          if (!stillFriend) {
+            cleanupTypingChannel();
+            activeChatFriend = null;
+            chatMessages = [];
+            stopMessagePolling();
+          }
+        }
+        renderContent();
+      }
+    } catch (e) {
+      console.warn("[Friends] Friendship poll error:", e);
+    }
+  }
+
   // ---- Typing Indicator (Supabase Broadcast) ----
   function setupTypingChannel(friendId) {
     cleanupTypingChannel();
@@ -1175,6 +1316,7 @@
     if (!activeChatFriend) return;
     chatMessages = await loadMessages(activeChatFriend.id);
     renderChatMessages();
+    startMessagePolling();
   }
 
   function renderChatMessages() {
@@ -1278,6 +1420,7 @@
         cleanupTypingChannel();
         activeChatFriend = null;
         chatMessages = [];
+        stopMessagePolling();
       }
       renderContent();
     });
@@ -1359,6 +1502,7 @@
         currentTab = btn.dataset.tab || "friends";
         activeChatFriend = null;
         chatMessages = [];
+        stopMessagePolling();
         renderContent();
       });
     });
@@ -1499,6 +1643,7 @@
       cleanupTypingChannel();
       activeChatFriend = null;
       chatMessages = [];
+      stopMessagePolling();
       renderContent();
     });
 
@@ -1556,6 +1701,7 @@
         setupRealtime();
         startPresenceHeartbeat();
         setupGameActivityListener();
+        startFriendshipPolling();
       }
 
       renderContent();
@@ -1580,6 +1726,7 @@
         cleanupTypingChannel();
         activeChatFriend = null;
         chatMessages = [];
+        stopMessagePolling();
       }
       return _origLoadPage.call(this, page);
     };
@@ -1625,6 +1772,8 @@
     stopPresenceHeartbeat();
     cleanupTypingChannel();
     cleanupRealtime();
+    stopMessagePolling();
+    stopFriendshipPolling();
   });
 
   // Also listen for the main-process quit signal (fires before beforeunload)
@@ -1636,10 +1785,14 @@
   window.api?.onHiddenToTray?.(() => {
     goOfflineSync();
     stopPresenceHeartbeat();
+    stopMessagePolling();
+    stopFriendshipPolling();
   });
   window.api?.onRestoredFromTray?.(async () => {
     try { await updatePresence(null, null); } catch {}
     startPresenceHeartbeat();
+    startFriendshipPolling();
+    if (activeChatFriend) startMessagePolling();
   });
 
 })();
